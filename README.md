@@ -1,5 +1,5 @@
 # BwtFS: Privacy-Preserving File System
-[**🌏 中文**](https://github.com/zaoweiceng/BwtFS/README.zh-CN.md)&nbsp;&nbsp;&nbsp;/&nbsp;&nbsp;&nbsp;
+[**🌏 中文**](https://github.com/zaoweiceng/BwtFS/blob/master/README.zh-CN.md)
 ## Project Overview
 This project aims to research and implement an efficient file system focused on protecting the privacy of users' private files. In multi-user or highly confidential environments, this system ensures the secure use of files.
 ## Main Goals
