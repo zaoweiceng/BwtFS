@@ -1,5 +1,21 @@
-# BwtFS: Privacy-Preserving File System
-[**🌏 中文**](https://github.com/zaoweiceng/BwtFS/README.zh-CN.md)&nbsp;&nbsp;&nbsp;/&nbsp;&nbsp;&nbsp;
+# BwtFS: 隐私保护文件系统
+## 项目简介
+本项目旨在研究和实现一种高效的文件系统，专注于保护用户私人文件的隐私。在多用户或高度保密的环境下，该系统能够确保文件的安全使用。
+## 主要目标
+- 设计并实现一种抗溯源的隐私存储模型。
+- 构建不可恢复的数据访问体系。
+- 实现协议层透明的隐私保护。
+## 设计要点
+- **抗溯源隐私存储**：确保存储的文件无法被追溯至原始用户，有效保护用户隐私。
+- **不可恢复数据访问**：采用特殊机制，确保即使数据被非法访问，也无法恢复原始信息。
+- **协议层透明**：在协议层面实现隐私保护，无需用户进行额外操作，提供无缝的使用体验。
+## 适用场景
+- **多用户环境**：如企业、学校等需要共享文件但又要保护个人隐私的场景。
+- **高度保密环境**：如政府、金融机构等对文件安全要求极高的场景。
+## 项目愿景
+通过本项目的实现，为用户提供一个安全、可靠、便捷的文件存储和使用环境，有效保护用户隐私，防止数据泄露。
+---
+# Privacy-Preserving File System
 ## Project Overview
 This project aims to research and implement an efficient file system focused on protecting the privacy of users' private files. In multi-user or highly confidential environments, this system ensures the secure use of files.
 ## Main Goals
