@@ -3,6 +3,7 @@
 #include<vector>
 #include<iostream>
 #include<string>
+#include <memory>
 
 namespace BwtFS::Node{
     class Binary{
@@ -11,6 +12,12 @@ namespace BwtFS::Node{
             Binary();
             // 构造函数，参数为size_t类型
             Binary(const size_t size);
+            // 构造函数，参数为std::string类型
+            Binary(const std::string& data);
+            // 构造函数，参数为std::vector<std::byte>类型
+            Binary(const std::vector<std::byte>& data);
+            // 构造函数，参数为std::byte*类型和size_t类型
+            Binary(const std::byte* data, const size_t size);
             // 构造函数，参数为Binary类型
             Binary(const Binary& other);
             // 赋值运算符，参数为Binary类型
@@ -40,6 +47,9 @@ namespace BwtFS::Node{
 
             // 获取数据，参数为size_t类型
             virtual std::byte get(const size_t index) const;
+            
+            // 写入数据，参数为size_t类型和std::byte类型
+            virtual void set(const size_t index, const std::byte data);
             
             // 写入数据，参数为size_t类型和std::byte*类型
             virtual bool write(const size_t index, const size_t size, const std::byte* data);
@@ -76,7 +86,7 @@ namespace BwtFS::Node{
             // 将std::byte*类型的数据转换为字符串
             const static std::string BINARY_TO_STRING(const std::byte* data, const size_t size);
             // 将字符串转换为std::byte*类型的数据
-            const static std::byte* STRING_TO_BINARY(const std::string& data);
+            const static std::vector<std::byte> STRING_TO_BINARY(const std::string& data);
         private:
 
             // 二进制数据数组

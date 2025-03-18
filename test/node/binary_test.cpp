@@ -1,4 +1,4 @@
-#include"binary.h"
+#include "node/binary.h"
 #include "gtest/gtest.h"
 
 TEST(BinaryTest, CreateBinary) {
@@ -13,8 +13,64 @@ TEST(BinaryTest, CreateBinary) {
     EXPECT_EQ (binary[7], std::byte{0});
 }
 
-TEST(BinaryTest, AddBinary){
-    BwtFS::Node::Binary binary1;
-    BwtFS::Node::Binary binary2;
 
+TEST(BinaryTest, AddBinary){
+    auto datas1 = std::vector<std::byte>{std::byte{1}, std::byte{2}, std::byte{3}, std::byte{4}};
+    auto datas2 = std::vector<std::byte>{std::byte{5}, std::byte{6}, std::byte{7}, std::byte{8}};
+    auto datas3 = std::vector<std::byte>{std::byte{1}, std::byte{2}, std::byte{3}, std::byte{4}, std::byte{5}, std::byte{6}, std::byte{7}, std::byte{8}};
+    BwtFS::Node::Binary binary1(datas1);
+    BwtFS::Node::Binary binary2(datas2);
+    BwtFS::Node::Binary binary(datas3);
+    EXPECT_FALSE(binary1 == binary2);
+    BwtFS::Node::Binary binary3 = binary1 + binary2;
+    // std::cout << binary1.to_string() << std::endl;
+    // std::cout << binary.to_string() << std::endl;
+    // std::cout << binary3.to_string() << std::endl;
+    EXPECT_TRUE(binary == binary3);
+}
+
+TEST(BinaryTest, String){
+    std::string str = "00fff191";
+    auto bin = BwtFS::Node::Binary(str);
+    // std::cout << bin.to_string() << std::endl;
+    EXPECT_EQ(str, bin.to_string());
+}
+
+TEST(BinaryTest, WriteData){
+    BwtFS::Node::Binary binary(4);
+    binary.write(std::vector<std::byte>{std::byte{1}, std::byte{2}, std::byte{3}, std::byte{4}});
+    EXPECT_EQ(binary.to_string(), "01020304");
+    binary.set(1, std::byte{5});
+    EXPECT_EQ(binary.to_string(), "01050304");
+}
+
+TEST(BinaryTest, ReadData){
+    BwtFS::Node::Binary binary(4);
+    binary.write(std::vector<std::byte>{std::byte{1}, std::byte{2}, std::byte{3}, std::byte{4}});
+    auto data = binary.read(1, 2);
+    EXPECT_EQ(data[0], std::byte{2});
+    EXPECT_EQ(data[1], std::byte{3});
+    auto data1 = binary.get(3);
+    EXPECT_EQ(data1, std::byte{4});
+}
+
+TEST(BinaryTest, Resize){
+    BwtFS::Node::Binary binary(1);
+    binary.resize(2);
+    EXPECT_EQ(binary.size(), 2);
+    EXPECT_EQ(binary.to_string(), "0000");
+}
+
+TEST(BinaryTest, Clear){
+    BwtFS::Node::Binary binary(4);
+    binary.write(std::vector<std::byte>{std::byte{1}, std::byte{2}, std::byte{3}, std::byte{4}});
+    binary.clear();
+    EXPECT_EQ(binary.to_string(), "");
+}
+
+TEST(BinaryTest, Append){
+    BwtFS::Node::Binary binary(4);
+    binary.write(std::vector<std::byte>{std::byte{1}, std::byte{2}, std::byte{3}, std::byte{4}});
+    binary.append(std::vector<std::byte>{std::byte{5}, std::byte{6}});
+    EXPECT_EQ(binary.to_string(), "010203040506");
 }
