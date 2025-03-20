@@ -13,7 +13,6 @@ TEST(BinaryTest, CreateBinary) {
     EXPECT_EQ (binary[7], std::byte{0});
 }
 
-
 TEST(BinaryTest, AddBinary){
     auto datas1 = std::vector<std::byte>{std::byte{1}, std::byte{2}, std::byte{3}, std::byte{4}};
     auto datas2 = std::vector<std::byte>{std::byte{5}, std::byte{6}, std::byte{7}, std::byte{8}};
@@ -73,4 +72,27 @@ TEST(BinaryTest, Append){
     binary.write(std::vector<std::byte>{std::byte{1}, std::byte{2}, std::byte{3}, std::byte{4}});
     binary.append(std::vector<std::byte>{std::byte{5}, std::byte{6}});
     EXPECT_EQ(binary.to_string(), "010203040506");
+}
+
+TEST(BinaryTest, Xor){
+    auto datas1 = std::vector<std::byte>{std::byte{1}, std::byte{2}, std::byte{3}, std::byte{4}, std::byte{5}, std::byte{6}, std::byte{7}};
+    auto datas2 = std::vector<std::byte>{std::byte{5}, std::byte{6}, std::byte{7}, std::byte{8}};
+    BwtFS::Node::Binary binary1(datas1);
+    BwtFS::Node::Binary binary2(datas2);
+    BwtFS::Node::Binary binary3 = binary1 ^ binary2;
+    BwtFS::Node::Binary binary4 = binary3 ^ binary2;
+    EXPECT_EQ(binary1.to_string(), binary4.to_string());
+}
+
+TEST(BinaryTest, Ascii){
+    std::string str = "hello";
+    auto bin = BwtFS::Node::Binary(str, BwtFS::Node::StringType::ASCII);
+    EXPECT_EQ(str, bin.to_ascll_string());
+}
+
+TEST(BinaryTest, Base64){
+    auto bin = BwtFS::Node::Binary("hello world!!!", BwtFS::Node::StringType::ASCII);
+    auto base64 = bin.to_base64_string();
+    auto bin1 = BwtFS::Node::Binary(base64, BwtFS::Node::StringType::BASE64);
+    EXPECT_EQ(bin.to_ascll_string(), bin1.to_ascll_string());
 }

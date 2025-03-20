@@ -2,18 +2,25 @@
 #include"node/binary.h"
 #include <iostream>
 #include <string>
+#include <cstddef>
 #include <sstream>
 #include <vector>
 #include <iomanip>
 #include <memory>
+#include <array>
 
 BwtFS::Node::Binary::Binary(){
     this->binary_array = std::make_shared<std::vector<std::byte>>(BwtFS::BLOCK_SIZE); 
 }
 
-BwtFS::Node::Binary::Binary(const std::string& data){
-    this->binary_array = std::make_shared<std::vector<std::byte>>(STRING_TO_BINARY(data));
-
+BwtFS::Node::Binary::Binary(const std::string& data, BwtFS::Node::StringType type){
+    if(type == BwtFS::Node::StringType::BINARY){
+        this->binary_array = std::make_shared<std::vector<std::byte>>(STRING_TO_BINARY(data));
+    }else if (type == BwtFS::Node::StringType::ASCII){
+        this->binary_array = std::make_shared<std::vector<std::byte>>(ASCll_TO_BINARY(data));
+    }else if (type == StringType::BASE64){
+        this->binary_array = std::make_shared<std::vector<std::byte>>(BASE64_TO_BINARY(data));
+    }
 }
 
 BwtFS::Node::Binary::Binary(const std::vector<std::byte>& data){
@@ -45,12 +52,11 @@ std::byte& BwtFS::Node::Binary::operator[](const size_t index) const{
     return this->binary_array->at(index);
 }
 
-BwtFS::Node::Binary& BwtFS::Node::Binary::operator+(const Binary& other){
+BwtFS::Node::Binary BwtFS::Node::Binary::operator+(const Binary& other){
     std::shared_ptr<std::vector<std::byte>> new_array = std::make_shared<std::vector<std::byte>>(this->binary_array->size() + other.binary_array->size());
     std::copy(this->binary_array->begin(), this->binary_array->end(), new_array->begin());
     std::copy(other.binary_array->begin(), other.binary_array->end(), new_array->begin() + this->binary_array->size());
-    BwtFS::Node::Binary* new_binary = new BwtFS::Node::Binary(new_array->data(), new_array->size());
-    return *new_binary;
+    return BwtFS::Node::Binary(new_array->data(), new_array->size());
 }
 
 bool BwtFS::Node::Binary::operator==(const Binary& other) const{
@@ -59,6 +65,24 @@ bool BwtFS::Node::Binary::operator==(const Binary& other) const{
 
 bool BwtFS::Node::Binary::operator!=(const Binary& other) const{
     return this->to_string() == other.to_string();
+}
+
+std::vector<std::byte> xorVectors(const std::shared_ptr<std::vector<std::byte>>& v1, const std::shared_ptr<std::vector<std::byte>>& v2){
+    if (v1->size() < v2->size()) {
+        return xorVectors(v2, v1);
+    }
+    std::vector<std::byte> result;
+    int j = 0;
+    for (size_t i = 0; i < v1->size(); i++, j++) {
+        if (j == v2->size()) {
+            j = 0;
+        }
+        result.push_back(v1->at(i) ^ v2->at(j));
+    }
+    return result;
+}
+BwtFS::Node::Binary BwtFS::Node::Binary::operator^(const Binary& other){
+    return xorVectors(this->binary_array, other.binary_array);
 }
 
 std::byte* BwtFS::Node::Binary::read(const size_t index, const size_t size) const{
@@ -140,10 +164,10 @@ std::string byteToHex(std::byte b) {
     return ss.str();
 }
 
-std::string byteArrayToHexString(const std::byte* bytes, size_t size) {
+std::string byteArrayToHexString(const std::vector<std::byte>& data, size_t size) {
     std::string hexString;
     for (size_t i = 0; i < size; i++) {
-        hexString += byteToHex(bytes[i]);
+        hexString += byteToHex(data[i]);
     }
     return hexString;
 }
@@ -174,7 +198,7 @@ BwtFS::Node::Binary& BwtFS::Node::Binary::resize(const size_t size){
     return *this;
 }
 
-const std::string BwtFS::Node::Binary::BINARY_TO_STRING(const std::byte* data, const size_t size){
+const std::string BwtFS::Node::Binary::BINARY_TO_STRING(const std::vector<std::byte>& data, const size_t size){
     return byteArrayToHexString(data, size);
 }
 const std::vector<std::byte> BwtFS::Node::Binary::STRING_TO_BINARY(const std::string& data){
@@ -182,10 +206,152 @@ const std::vector<std::byte> BwtFS::Node::Binary::STRING_TO_BINARY(const std::st
 }
 
 std::string BwtFS::Node::Binary::to_string(const size_t index, const size_t size) const{
-    return BINARY_TO_STRING(this->binary_array->data() + index, size);
+    return BINARY_TO_STRING(*this->binary_array, size);
 }
 
 std::string BwtFS::Node::Binary::to_string() const{
-    return BINARY_TO_STRING(this->binary_array->data(), this->binary_array->size());
+    return BINARY_TO_STRING(*this->binary_array, this->binary_array->size());
 }
 
+const std::string BwtFS::Node::Binary::BINARY_TO_ASCll(const std::vector<std::byte>& data, const size_t size){
+    std::string str;
+    for (size_t i = 0; i < size; i++){
+        str += static_cast<char>(data[i]);
+    }
+    return str;
+}
+
+const std::vector<std::byte> BwtFS::Node::Binary::ASCll_TO_BINARY(const std::string& data){
+    std::vector<std::byte> binary;
+    for (size_t i = 0; i < data.size(); i++){
+        binary.push_back(static_cast<std::byte>(data[i]));
+    }
+    return binary;
+}
+
+std::string BwtFS::Node::Binary::to_ascll_string(const size_t index, const size_t size) const{
+    return BINARY_TO_ASCll(*this->binary_array, size);
+}
+
+std::string BwtFS::Node::Binary::to_ascll_string() const{
+    return BINARY_TO_ASCll(*this->binary_array, this->binary_array->size());
+}
+
+std::string base64_encode(const std::vector<std::byte>& input) {
+    static constexpr char base64_chars[] = 
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz"
+        "0123456789+/";
+
+    const unsigned char* data = reinterpret_cast<const unsigned char*>(input.data());
+    size_t input_len = input.size();
+    std::string output;
+    output.reserve(4 * ((input_len + 2) / 3)); // 预分配空间
+    for (size_t i = 0; i < input_len; i += 3) {
+        unsigned char a = data[i];
+        unsigned char b = (i + 1 < input_len) ? data[i + 1] : 0;
+        unsigned char c = (i + 2 < input_len) ? data[i + 2] : 0;
+
+        unsigned char group1 = (a >> 2) & 0x3F;
+        unsigned char group2 = ((a & 0x03) << 4) | ((b >> 4) & 0x0F);
+        unsigned char group3 = ((b & 0x0F) << 2) | ((c >> 6) & 0x03);
+        unsigned char group4 = c & 0x3F;
+
+        output.push_back(base64_chars[group1]);
+        output.push_back(base64_chars[group2]);
+        output.push_back(base64_chars[group3]);
+        output.push_back(base64_chars[group4]);
+    }
+    // 处理填充
+    size_t mod = input_len % 3;
+    if (mod == 1) {
+        // 替换最后两个字符为 '=='
+        output[output.size() - 2] = '=';
+        output[output.size() - 1] = '=';
+    } else if (mod == 2) {
+        // 替换最后一个字符为 '='
+        output[output.size() - 1] = '=';
+    }
+    return output;
+}
+
+std::vector<std::byte> base64_to_bytes(const std::string& input) {
+    const std::string base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    
+    // 创建解码表（字符到6位值）
+    std::array<int, 256> decode_table{};
+    for (auto& elem : decode_table) elem = -1;
+    for (int i = 0; i < 64; ++i) {
+        decode_table[static_cast<unsigned char>(base64_chars[i])] = i;
+    }
+
+    const size_t len = input.size();
+    if (len % 4 != 0) {
+        throw std::invalid_argument("Base64 string length must be a multiple of 4");
+    }
+
+    // 计算填充符数量（0/1/2）
+    size_t padding = 0;
+    if (len > 0 && input[len - 1] == '=') padding++;
+    if (len > 1 && input[len - 2] == '=') padding++;
+
+    std::vector<std::byte> result;
+    result.reserve((len / 4) * 3 - padding); // 预分配内存优化
+
+    for (size_t i = 0; i < len; i += 4) {
+        // 提取四字符组中的6位值
+        uint32_t sextet_a = decode_table[static_cast<unsigned char>(input[i])];
+        uint32_t sextet_b = decode_table[static_cast<unsigned char>(input[i+1])];
+        uint32_t sextet_c = 0, sextet_d = 0;
+
+        // 处理第三个字符（允许为=）
+        if (input[i+2] != '=') {
+            sextet_c = decode_table[static_cast<unsigned char>(input[i+2])];
+            if (sextet_c == -1) throw std::invalid_argument("Invalid character");
+        }
+
+        // 处理第四个字符（允许为=）
+        if (input[i+3] != '=') {
+            sextet_d = decode_table[static_cast<unsigned char>(input[i+3])];
+            if (sextet_d == -1) throw std::invalid_argument("Invalid character");
+        }
+
+        if (sextet_a == -1 || sextet_b == -1) {
+            throw std::invalid_argument("Invalid character in Base64 string");
+        }
+
+        // 组合四字符为24位整数
+        const uint32_t triplet = 
+            (sextet_a << 18) | (sextet_b << 12) | 
+            (sextet_c << 6)  | sextet_d;
+
+        // 提取三个字节
+        result.push_back(static_cast<std::byte>((triplet >> 16) & 0xFF));
+        if (input[i+2] != '=') {  // 非填充情况
+            result.push_back(static_cast<std::byte>((triplet >> 8) & 0xFF));
+            if (input[i+3] != '=') {
+                result.push_back(static_cast<std::byte>(triplet & 0xFF));
+            }
+        } else {
+            // 第三个字符是=，第四个必须也是=
+            if (input[i+3] != '=') {
+                throw std::invalid_argument("Invalid padding with '='");
+            }
+        }
+    }
+    return result;
+}
+
+
+
+const std::string BwtFS::Node::Binary::BINARY_TO_BASE64(const std::vector<std::byte>& data){
+    return base64_encode(data);
+}
+
+const std::vector<std::byte> BwtFS::Node::Binary::BASE64_TO_BINARY(const std::string& data){
+    return base64_to_bytes(data);
+}
+
+std::string BwtFS::Node::Binary::to_base64_string() const{
+    return BINARY_TO_BASE64(*this->binary_array);
+}
