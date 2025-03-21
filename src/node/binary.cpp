@@ -31,10 +31,16 @@ BwtFS::Node::Binary::Binary(const std::byte* data, const size_t size){
     this->binary_array = std::make_shared<std::vector<std::byte>>(data, data + size);
 }
 BwtFS::Node::Binary::Binary(const Binary& other){
+    if (other.binary_array == nullptr)
+        throw std::runtime_error("Other Binary array is null");
     this->binary_array = other.binary_array;
 }
 
 BwtFS::Node::Binary& BwtFS::Node::Binary::operator=(const Binary& other){
+    if (this == &other)
+        return *this;
+    if (other.binary_array == nullptr)
+        throw std::runtime_error("Other Binary array is null");
     this->binary_array = other.binary_array; 
     return *this;
 }
@@ -44,15 +50,39 @@ BwtFS::Node::Binary::Binary(const size_t size){
 }
 
 BwtFS::Node::Binary& BwtFS::Node::Binary::operator=(Binary&& other){
-    this->binary_array = std::move(other.binary_array);
+    if (this != &other){
+        if(other.binary_array == nullptr)
+            throw std::runtime_error("Other Binary array is null");
+        this->binary_array = other.binary_array;
+        this->binary_array.reset();
+        other.binary_array = nullptr;
+    }
+    return *this;
+}
+
+BwtFS::Node::Binary& BwtFS::Node::Binary::operator+=(Binary&& other){
+    if (this != &other){
+        if(other.binary_array == nullptr)
+            throw std::runtime_error("Other Binary array is null");
+        this->binary_array->insert(this->binary_array->end(), other.binary_array->begin(), other.binary_array->end());
+        other.binary_array = nullptr;
+    }
     return *this;
 }
 
 std::byte& BwtFS::Node::Binary::operator[](const size_t index) const{
+    if (this->binary_array == nullptr)
+        throw std::runtime_error("Binary array is null");
+    if (index >= this->binary_array->size())
+        throw std::runtime_error("Index out of range");
     return this->binary_array->at(index);
 }
 
 BwtFS::Node::Binary BwtFS::Node::Binary::operator+(const Binary& other){
+    if (other.binary_array == nullptr)
+        throw std::runtime_error("Other Binary array is null");
+    if (this->binary_array == nullptr)
+        throw std::runtime_error("Binary array is null");
     std::shared_ptr<std::vector<std::byte>> new_array = std::make_shared<std::vector<std::byte>>(this->binary_array->size() + other.binary_array->size());
     std::copy(this->binary_array->begin(), this->binary_array->end(), new_array->begin());
     std::copy(other.binary_array->begin(), other.binary_array->end(), new_array->begin() + this->binary_array->size());
@@ -60,10 +90,18 @@ BwtFS::Node::Binary BwtFS::Node::Binary::operator+(const Binary& other){
 }
 
 bool BwtFS::Node::Binary::operator==(const Binary& other) const{
+    if (this->binary_array == nullptr)
+        throw std::runtime_error("Binary array is null");
+    if (other.binary_array == nullptr)
+        throw std::runtime_error("Other Binary array is null");
     return this->to_string() == other.to_string();
 }
 
 bool BwtFS::Node::Binary::operator!=(const Binary& other) const{
+    if (this->binary_array == nullptr)
+        throw std::runtime_error("Binary array is null");
+    if (other.binary_array == nullptr)
+        throw std::runtime_error("Other Binary array is null");
     return this->to_string() == other.to_string();
 }
 
@@ -82,37 +120,57 @@ std::vector<std::byte> xorVectors(const std::shared_ptr<std::vector<std::byte>>&
     return result;
 }
 BwtFS::Node::Binary BwtFS::Node::Binary::operator^(const Binary& other){
+    if (this->binary_array == nullptr)  
+        throw std::runtime_error("Binary array is null");
+    if (other.binary_array == nullptr)
+        throw std::runtime_error("Other Binary array is null");
     return xorVectors(this->binary_array, other.binary_array);
 }
 
-std::byte* BwtFS::Node::Binary::read(const size_t index, const size_t size) const{
+std::vector<std::byte> BwtFS::Node::Binary::read(const size_t index, const size_t size) const{
+    if (this->binary_array == nullptr)
+        throw std::runtime_error("Binary array is null");
     size_t read_size = size;
     if (index + size > this->binary_array->size())
         read_size = this->binary_array->size() - index;
     if (read_size <= 0)
-        return nullptr;
-    std::byte* data = new std::byte[read_size];
-    std::copy(this->binary_array->begin() + index, this->binary_array->begin() + index + size, data);
-    return data;
+        return {};
+    return std::vector<std::byte>(this->binary_array->begin() + index, this->binary_array->begin() + index + read_size);
 }
 
-std::byte* BwtFS::Node::Binary::read(const size_t index) const{
+std::vector<std::byte> BwtFS::Node::Binary::read(const size_t index) const{
+    if (this->binary_array == nullptr)
+        throw std::runtime_error("Binary array is null");
     return read(index, this->binary_array->size() - index);
 }
 
-std::byte* BwtFS::Node::Binary::read() const{
+std::vector<std::byte> BwtFS::Node::Binary::read() const{
+    if (this->binary_array == nullptr)
+        throw std::runtime_error("Binary array is null");
     return read(0, this->binary_array->size());
 }
 
 std::byte BwtFS::Node::Binary::get(const size_t index) const{
+    if (this->binary_array == nullptr)
+        throw std::runtime_error("Binary array is null");
+    if (index >= this->binary_array->size())
+        throw std::runtime_error("Index out of range");
     return this->binary_array->at(index);
 }
 
 void BwtFS::Node::Binary::set(const size_t index, const std::byte data){
+    if (this->binary_array == nullptr)
+        throw std::runtime_error("Binary array is null");
+    if (index >= this->binary_array->size())
+        throw std::runtime_error("Index out of range");
+    if (index < 0)
+        throw std::runtime_error("Index out of range");
     this->binary_array->at(index) = data;
 }
 
 bool BwtFS::Node::Binary::write(const size_t index, const size_t size, const std::byte* data){
+    if (this->binary_array == nullptr)
+        throw std::runtime_error("Binary array is null");
     if (index + size > this->binary_array->size() || index < 0 || size < 0)
         return false;
     std::copy(data, data + size, this->binary_array->begin() + index);
@@ -124,37 +182,53 @@ bool BwtFS::Node::Binary::write(const size_t index, const size_t size, std::vect
 }
 
 bool BwtFS::Node::Binary::write(const size_t index, const std::byte* data){
+    if (this->binary_array == nullptr)
+        throw std::runtime_error("Binary array is null");
     return write(index, this->binary_array->size() - index, data);
 }
 
 bool BwtFS::Node::Binary::write(const size_t index, const std::vector<std::byte>& data){
+    if (this->binary_array == nullptr)
+        throw std::runtime_error("Binary array is null");
     return write(index, this->binary_array->size() - index, data.data());
 }
 
 bool BwtFS::Node::Binary::write(const std::byte* data){
+    if (this->binary_array == nullptr)
+        throw std::runtime_error("Binary array is null");
     return write(0, this->binary_array->size(), data);
 }
 
 bool BwtFS::Node::Binary::write(const std::vector<std::byte>& data){
+    if (this->binary_array == nullptr)
+        throw std::runtime_error("Binary array is null");
     return write(0, this->binary_array->size(), data.data());
 }
 
 BwtFS::Node::Binary& BwtFS::Node::Binary::append(const size_t size, const std::byte* data){
+    if (this->binary_array == nullptr)
+        throw std::runtime_error("Binary array is null");
     this->binary_array->insert(this->binary_array->end(), data, data + size);
     return *this;
 }
 
 BwtFS::Node::Binary& BwtFS::Node::Binary::append(const std::vector<std::byte>& data){
+    if (this->binary_array == nullptr)
+        throw std::runtime_error("Binary array is null");
     this->binary_array->insert(this->binary_array->end(), data.begin(), data.end());
     return *this;
 }
 
 BwtFS::Node::Binary& BwtFS::Node::Binary::clear(){
+    if (this->binary_array == nullptr)
+        throw std::runtime_error("Binary array is null");
     this->binary_array->clear();
     return *this;
 }
 
 size_t BwtFS::Node::Binary::size() const{
+    if (this->binary_array == nullptr)
+        throw std::runtime_error("Binary array is null");
     return this->binary_array->size();
 }
 
@@ -194,6 +268,10 @@ std::vector<std::byte> hexStringToByteArray(const std::string& hexString) {
 }
 
 BwtFS::Node::Binary& BwtFS::Node::Binary::resize(const size_t size){
+    if (this->binary_array == nullptr)
+        throw std::runtime_error("Binary array is null");
+    if (size < this->binary_array->size())
+        this->binary_array->resize(size);
     this->binary_array->resize(size);
     return *this;
 }
@@ -206,10 +284,20 @@ const std::vector<std::byte> BwtFS::Node::Binary::STRING_TO_BINARY(const std::st
 }
 
 std::string BwtFS::Node::Binary::to_string(const size_t index, const size_t size) const{
+    if (this->binary_array == nullptr)
+        throw std::runtime_error("Binary array is null");
+    if (index + size > this->binary_array->size())
+        return BINARY_TO_STRING(*this->binary_array, this->binary_array->size());
+    if (index < 0 || size < 0)
+        return BINARY_TO_STRING(*this->binary_array, this->binary_array->size());
     return BINARY_TO_STRING(*this->binary_array, size);
 }
 
 std::string BwtFS::Node::Binary::to_string() const{
+    if (this->binary_array == nullptr)
+        throw std::runtime_error("Binary array is null");
+    if (this->binary_array->size() == 0)
+        return "";
     return BINARY_TO_STRING(*this->binary_array, this->binary_array->size());
 }
 
@@ -230,10 +318,18 @@ const std::vector<std::byte> BwtFS::Node::Binary::ASCll_TO_BINARY(const std::str
 }
 
 std::string BwtFS::Node::Binary::to_ascll_string(const size_t index, const size_t size) const{
+    if (this->binary_array == nullptr)
+        throw std::runtime_error("Binary array is null");
+    if (index + size > this->binary_array->size())
+        return BINARY_TO_ASCll(*this->binary_array, this->binary_array->size());
     return BINARY_TO_ASCll(*this->binary_array, size);
 }
 
 std::string BwtFS::Node::Binary::to_ascll_string() const{
+    if (this->binary_array == nullptr)
+        throw std::runtime_error("Binary array is null");
+    if (this->binary_array->size() == 0)
+        return "";
     return BINARY_TO_ASCll(*this->binary_array, this->binary_array->size());
 }
 
@@ -353,5 +449,19 @@ const std::vector<std::byte> BwtFS::Node::Binary::BASE64_TO_BINARY(const std::st
 }
 
 std::string BwtFS::Node::Binary::to_base64_string() const{
+    if (this->binary_array == nullptr)
+        throw std::runtime_error("Binary array is null");
+    if (this->binary_array->size() == 0)
+        return "";
     return BINARY_TO_BASE64(*this->binary_array);
+}
+
+const BwtFS::Node::Binary BwtFS::Node::Binary::contact(std::initializer_list<Binary>&& args){
+    BwtFS::Node::Binary binary(0);
+    for (auto arg : args){
+        if (arg.binary_array == nullptr)
+            throw std::runtime_error("Binary array is null");
+        binary += std::move(arg);
+    }
+    return binary;
 }

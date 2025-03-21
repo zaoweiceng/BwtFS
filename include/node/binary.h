@@ -37,7 +37,8 @@ namespace BwtFS::Node{
             // 移动构造函数，参数为Binary类型
             Binary(Binary&& other) = default;
             // 移动赋值运算符，参数为Binary类型
-            Binary& operator=(Binary&& other);
+            Binary& operator=(Binary&& other) ;
+            Binary& operator+=(Binary&& other);
             // 析构函数
             ~Binary() = default;
         // ----------- 运算符重载 ------------
@@ -56,11 +57,11 @@ namespace BwtFS::Node{
         
         // ------------ 读数据 -------------
             // 读取数据，参数为size_t类型
-            virtual std::byte* read(const size_t index, const size_t size) const;
+            virtual std::vector<std::byte> read(const size_t index, const size_t size) const;
             // 读取数据，参数为size_t类型
-            virtual std::byte* read(const size_t index) const;
+            virtual std::vector<std::byte> read(const size_t index) const;
             // 读取数据，无参数
-            virtual std::byte* read() const;
+            virtual std::vector<std::byte> read() const;
             // 获取数据，参数为size_t类型
             virtual std::byte get(const size_t index) const;
             
@@ -116,6 +117,8 @@ namespace BwtFS::Node{
             const static std::string BINARY_TO_BASE64(const std::vector<std::byte>& data);
             // 将Base64字符串转换为std::vector<std::byte>类型的数据
             const static std::vector<std::byte> BASE64_TO_BINARY(const std::string& data);
+            // 将多个Binary对象连接起来
+            const static Binary contact(std::initializer_list<Binary>&& args);
         
         private:
         // ----------- 成员变量 ------------
