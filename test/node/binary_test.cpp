@@ -32,15 +32,15 @@ TEST(BinaryTest, String){
     std::string str = "00fff191";
     auto bin = BwtFS::Node::Binary(str);
     // std::cout << bin.to_string() << std::endl;
-    EXPECT_EQ(str, bin.to_string());
+    EXPECT_EQ(str, bin.to_hex_string());
 }
 
 TEST(BinaryTest, WriteData){
     BwtFS::Node::Binary binary(4);
     binary.write(std::vector<std::byte>{std::byte{1}, std::byte{2}, std::byte{3}, std::byte{4}});
-    EXPECT_EQ(binary.to_string(), "01020304");
+    EXPECT_EQ(binary.to_hex_string(), "01020304");
     binary.set(1, std::byte{5});
-    EXPECT_EQ(binary.to_string(), "01050304");
+    EXPECT_EQ(binary.to_hex_string(), "01050304");
 }
 
 TEST(BinaryTest, ReadData){
@@ -55,23 +55,23 @@ TEST(BinaryTest, ReadData){
 
 TEST(BinaryTest, Resize){
     BwtFS::Node::Binary binary(1);
-    binary.resize(2);
+    binary = binary.resize(2);
     EXPECT_EQ(binary.size(), 2);
-    EXPECT_EQ(binary.to_string(), "0000");
+    EXPECT_EQ(binary.to_hex_string(), "0000");
 }
 
 TEST(BinaryTest, Clear){
     BwtFS::Node::Binary binary(4);
     binary.write(std::vector<std::byte>{std::byte{1}, std::byte{2}, std::byte{3}, std::byte{4}});
     binary.clear();
-    EXPECT_EQ(binary.to_string(), "");
+    EXPECT_EQ(binary.to_hex_string(), "");
 }
 
 TEST(BinaryTest, Append){
     BwtFS::Node::Binary binary(4);
     binary.write(std::vector<std::byte>{std::byte{1}, std::byte{2}, std::byte{3}, std::byte{4}});
     binary.append(std::vector<std::byte>{std::byte{5}, std::byte{6}});
-    EXPECT_EQ(binary.to_string(), "010203040506");
+    EXPECT_EQ(binary.to_hex_string(), "010203040506");
 }
 
 TEST(BinaryTest, Xor){
@@ -81,7 +81,7 @@ TEST(BinaryTest, Xor){
     BwtFS::Node::Binary binary2(datas2);
     BwtFS::Node::Binary binary3 = binary1 ^ binary2;
     BwtFS::Node::Binary binary4 = binary3 ^ binary2;
-    EXPECT_EQ(binary1.to_string(), binary4.to_string());
+    EXPECT_EQ(binary1.to_hex_string(), binary4.to_hex_string());
 }
 
 TEST(BinaryTest, Ascii){

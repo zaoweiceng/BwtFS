@@ -94,15 +94,19 @@ namespace BwtFS::Node{
             // 调整数据大小，参数为size_t类型
             virtual Binary& resize(const size_t size);
             // 将数据转换为字符串，参数为size_t类型
-            virtual std::string to_string(const size_t index, const size_t size) const;
+            virtual std::string to_hex_string(const size_t index, const size_t size) const;
             // 将数据转换为字符串，无参数
-            virtual std::string to_string() const;
+            virtual std::string to_hex_string() const;
             //将数据转换为Ascll字符串，参数为size_t类型
             virtual std::string to_ascll_string(const size_t index, const size_t size) const;
             // 将数据转换为Ascll字符串，无参数
             virtual std::string to_ascll_string() const;
             // 将数据转换为Base64字符串，无参数
             virtual std::string to_base64_string() const;
+            // 判断数据是否为空
+            virtual bool empty() const;
+            // 判断数据指针是否为空
+            virtual bool is_null() const;
 
         // ----------- 静态函数 ------------
             // 将std::byte*类型的数据转换为字符串
