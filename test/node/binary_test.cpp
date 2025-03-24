@@ -96,3 +96,11 @@ TEST(BinaryTest, Base64){
     auto bin1 = BwtFS::Node::Binary(base64, BwtFS::Node::StringType::BASE64);
     EXPECT_EQ(bin.to_ascll_string(), bin1.to_ascll_string());
 }
+
+TEST(BinaryTest, Contact){
+    std::string str = "00fff191", str1 = "00fff191";
+    auto bin = BwtFS::Node::Binary(str, BwtFS::Node::StringType::ASCII);
+    auto bin1 = BwtFS::Node::Binary(str1, BwtFS::Node::StringType::ASCII);
+    auto bin2 = BwtFS::Node::Binary::contact({std::move(bin), std::move(bin1)});
+    EXPECT_EQ(bin2.to_base64_string(), "MDBmZmYxOTEwMGZmZjE5MQ==");
+}
