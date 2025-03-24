@@ -47,3 +47,17 @@ TEST(CellTest, Cell){
     auto data1 = binary.to_ascll_string();
     EXPECT_EQ("Hello World!AAABBBCCC1234567890", data1);
 }
+
+TEST(CellTest, RCell){
+    std::string str = "Hello World!";
+    BwtFS::Node::Binary binary(str, BwtFS::Node::StringType::ASCII);
+    BwtFS::Util::Cell cell(1024, binary);
+    cell.forward();
+    auto data = binary.to_hex_string();
+
+    BwtFS::Node::Binary binary1(data, BwtFS::Node::StringType::BINARY);
+    BwtFS::Util::Cell cell1(1024, binary1);
+    cell1.backward();
+    auto data1 = binary1.to_ascll_string();
+    EXPECT_EQ("Hello World!", data1);
+}

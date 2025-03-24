@@ -10,7 +10,7 @@
 #include <array>
 
 BwtFS::Node::Binary::Binary(){
-    this->binary_array = std::make_shared<std::vector<std::byte>>(BwtFS::BLOCK_SIZE); 
+    this->binary_array = std::make_shared<std::vector<std::byte>>(0); 
 }
 
 BwtFS::Node::Binary::Binary(const std::string& data, BwtFS::Node::StringType type){
