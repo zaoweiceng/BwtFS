@@ -5,13 +5,13 @@
 #include "node/binary.h"
 
 namespace BwtFS::Util{
-    class Cell{
+    class RCA{
         /*
         * Cell类
         * 可逆细胞自动机
         * */
         public:
-            Cell(unsigned seed, BwtFS::Node::Binary& binary);
+        RCA(unsigned seed, BwtFS::Node::Binary& binary);
             //前向迭代
             void forward();
             //反向迭代
