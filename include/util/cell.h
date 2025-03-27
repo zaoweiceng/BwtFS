@@ -11,7 +11,12 @@ namespace BwtFS::Util{
         * 可逆细胞自动机
         * */
         public:
-        RCA(unsigned seed, BwtFS::Node::Binary& binary);
+            RCA(unsigned seed, BwtFS::Node::Binary& binary);
+            RCA(RCA const& other) = delete;
+            RCA& operator=(RCA const& other) = delete;
+            RCA(RCA&& other) = delete;
+            RCA& operator=(RCA&& other) = delete;
+            ~RCA() = default;
             //前向迭代
             void forward();
             //反向迭代

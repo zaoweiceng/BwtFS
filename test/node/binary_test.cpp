@@ -84,7 +84,7 @@ TEST(BinaryTest, Xor){
     EXPECT_EQ(binary1.to_hex_string(), binary4.to_hex_string());
 }
 
-TEST(BinaryTest, Ascii){
+TEST(BinaryTest, ASCII){
     std::string str = "hello";
     auto bin = BwtFS::Node::Binary(str, BwtFS::Node::StringType::ASCII);
     EXPECT_EQ(str, bin.to_ascll_string());
@@ -103,4 +103,11 @@ TEST(BinaryTest, Contact){
     auto bin1 = BwtFS::Node::Binary(str1, BwtFS::Node::StringType::ASCII);
     auto bin2 = BwtFS::Node::Binary::contact({std::move(bin), std::move(bin1)});
     EXPECT_EQ(bin2.to_base64_string(), "MDBmZmYxOTEwMGZmZjE5MQ==");
+}
+
+TEST(BinaryTest, OperatorMove){
+    BwtFS::Node::Binary binary(0), binary1("hello world!", BwtFS::Node::StringType::ASCII),
+        binary2("hehe world!", BwtFS::Node::StringType::ASCII);
+    binary << binary1 << binary2;
+    EXPECT_EQ(binary.to_ascll_string(), "hello world!hehe world!");
 }

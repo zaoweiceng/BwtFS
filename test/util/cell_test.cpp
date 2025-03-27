@@ -37,7 +37,6 @@ TEST(CellTest, Apply){
     EXPECT_EQ(std::to_integer<int>(b), 'l');
 }
 
-
 TEST(CellTest, Cell){
     BwtFS::Node::Binary binary("Hello World!AAABBBCCC1234567890", BwtFS::Node::StringType::ASCII);
     BwtFS::Util::RCA cell(1024, binary);

@@ -1,8 +1,8 @@
 #ifndef BiNARY_H
 #define BiNARY_H
-#include<vector>
-#include<iostream>
-#include<string>
+#include <vector>
+#include <iostream>
+#include <string>
 #include <memory>
 
 namespace BwtFS::Node{
@@ -18,6 +18,8 @@ namespace BwtFS::Node{
         * @author: zaoweiceng
         * @data: 2025-03-18
         */
+        friend BwtFS::Node::Binary& operator<<(BwtFS::Node::Binary&& dest, BwtFS::Node::Binary&& src); 
+        friend BwtFS::Node::Binary& operator<<(BwtFS::Node::Binary& dest, BwtFS::Node::Binary& src); 
         public:
         //----------- 构造函数和析构函数 ------------
             // 构造函数，无参数
@@ -28,6 +30,8 @@ namespace BwtFS::Node{
             Binary(const std::string& data, StringType type = StringType::BINARY);
             // 构造函数，参数为std::vector<std::byte>类型
             Binary(const std::vector<std::byte>& data);
+            // 构造函数，参数为std::shared_ptr<std::vector<std::byte>>类型
+            Binary(std::shared_ptr<std::vector<std::byte>> data);
             // 构造函数，参数为std::byte*类型和size_t类型
             Binary(const std::byte* data, const size_t size);
             // 构造函数，参数为Binary类型
@@ -129,5 +133,10 @@ namespace BwtFS::Node{
             // 二进制数据数组
             std::shared_ptr<std::vector<std::byte>>  binary_array;
     };
+
+    // 重载<<运算符
+    // 要用 operator<< 进行合并，必须定义为非成员函数，否则会因为隐式 this 参数导致编译错误。
+    Binary& operator<<(Binary&& dest, Binary&& src);
+    Binary& operator<<(Binary& dest, Binary& src);
 }
 #endif

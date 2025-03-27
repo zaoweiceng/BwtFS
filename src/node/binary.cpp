@@ -1,5 +1,5 @@
 #include "config.h"
-#include"node/binary.h"
+#include "node/binary.h"
 #include <iostream>
 #include <string>
 #include <cstddef>
@@ -8,6 +8,10 @@
 #include <iomanip>
 #include <memory>
 #include <array>
+#include <utility>
+#include <algorithm>
+#include <iterator>
+
 
 BwtFS::Node::Binary::Binary(){
     this->binary_array = std::make_shared<std::vector<std::byte>>(0); 
@@ -25,6 +29,10 @@ BwtFS::Node::Binary::Binary(const std::string& data, BwtFS::Node::StringType typ
 
 BwtFS::Node::Binary::Binary(const std::vector<std::byte>& data){
     this->binary_array = std::make_shared<std::vector<std::byte>>(data);
+}
+
+BwtFS::Node::Binary::Binary(std::shared_ptr<std::vector<std::byte>> data){
+    this->binary_array = data;
 }
 
 BwtFS::Node::Binary::Binary(const std::byte* data, const size_t size){
@@ -54,7 +62,6 @@ BwtFS::Node::Binary& BwtFS::Node::Binary::operator=(Binary&& other){
         if(other.binary_array == nullptr)
             throw std::runtime_error("operator=: Other Binary array is null");
         this->binary_array = other.binary_array;
-        this->binary_array.reset();
         other.binary_array = nullptr;
     }
     return *this;
@@ -68,6 +75,21 @@ BwtFS::Node::Binary& BwtFS::Node::Binary::operator+=(Binary&& other){
         other.binary_array = nullptr;
     }
     return *this;
+}
+
+// std::make_move_iterator 是一种高效的方式，可以移动大型对象而不会产生额外的内存拷贝开销。
+BwtFS::Node::Binary &BwtFS::Node::operator<<(Binary &&dest, Binary &&src){
+    if (dest.binary_array == nullptr || src.binary_array == nullptr)
+        throw std::runtime_error("operator<<: Binary array is null");
+    dest.binary_array->insert(dest.binary_array->end(), std::make_move_iterator(src.binary_array->begin()), std::make_move_iterator(src.binary_array->end()));
+    return dest;
+}
+
+BwtFS::Node::Binary &BwtFS::Node::operator<<(Binary &dest, Binary &src){
+    if (dest.binary_array == nullptr || src.binary_array == nullptr)
+        throw std::runtime_error("operator<<: Binary array is null");
+    dest.binary_array->insert(dest.binary_array->end(), std::make_move_iterator(src.binary_array->begin()), std::make_move_iterator(src.binary_array->end()));
+    return dest;
 }
 
 std::byte& BwtFS::Node::Binary::operator[](const size_t index) const{
