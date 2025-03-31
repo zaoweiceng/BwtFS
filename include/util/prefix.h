@@ -9,6 +9,12 @@
 namespace BwtFS::Util{
 
     class Prefix{
+        /*
+        * 前缀类
+        * 用于伪装文件的前缀
+        * @author: zaoweiceng
+        * @data: 2025-03-28
+        */
         public:
             Prefix(std::string src);
             ~Prefix();

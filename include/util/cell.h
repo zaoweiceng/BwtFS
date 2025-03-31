@@ -9,6 +9,9 @@ namespace BwtFS::Util{
         /*
         * Cell类
         * 可逆细胞自动机
+        * 用于细胞自动机的操作
+        * @author: zaoweiceng
+        * @data: 2025-03-26
         * */
         public:
             RCA(unsigned seed, BwtFS::Node::Binary& binary);
