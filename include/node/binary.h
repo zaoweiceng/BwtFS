@@ -11,21 +11,21 @@ namespace BwtFS::Node{
         ASCII,  // ASCII
         BASE64  // Base64
     };
+    /*
+    * 二进制数据类
+    * 用于二进制数据的读写操作
+    * @author: zaoweiceng
+    * @data: 2025-03-18
+    */
     class Binary{
-        /*
-        * 二进制数据类
-        * 用于二进制数据的读写操作
-        * @author: zaoweiceng
-        * @data: 2025-03-18
-        */
         friend BwtFS::Node::Binary& operator<<(BwtFS::Node::Binary&& dest, BwtFS::Node::Binary&& src); 
         friend BwtFS::Node::Binary& operator<<(BwtFS::Node::Binary& dest, BwtFS::Node::Binary& src); 
         public:
         //----------- 构造函数和析构函数 ------------
             // 构造函数，无参数
-            Binary();
+            explicit Binary();
             // 构造函数，参数为size_t类型
-            Binary(const size_t size);
+            explicit Binary(const size_t size);
             // 构造函数，参数为std::string类型
             Binary(const std::string& data, StringType type = StringType::BINARY);
             // 构造函数，参数为std::vector<std::byte>类型
@@ -137,6 +137,8 @@ namespace BwtFS::Node{
     // 重载<<运算符
     // 要用 operator<< 进行合并，必须定义为非成员函数，否则会因为隐式 this 参数导致编译错误。
     Binary& operator<<(Binary&& dest, Binary&& src);
+    // 重载<<运算符
+    // 要用 operator<< 进行合并，必须定义为非成员函数，否则会因为隐式 this 参数导致编译错误。
     Binary& operator<<(Binary& dest, Binary& src);
 }
 #endif

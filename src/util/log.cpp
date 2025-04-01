@@ -1,5 +1,23 @@
 #include "util/log.h"
+#include "util/ini_parser.h"
 #include <iomanip>
+
+void BwtFS::Util::Logger::init() {
+    auto config = BwtFs::Config::getInstance();
+    __level = BwtFS::Util::LogLevelFromString(config.get("logging", "log_level", "INFO"));
+    __console = config.get("logging", "log_to_console", "true") == "true";
+    __file = config.get("logging", "log_to_file", "false") == "true";
+    __file_path = config.get("logging", "log_path", "");
+
+}
+
+BwtFS::Util::LogLevel  BwtFS::Util::LogLevelFromString(const std::string& levelStr) {
+    if (levelStr == "DEBUG") return LogLevel::DEBUG;
+    if (levelStr == "INFO") return LogLevel::INFO;
+    if (levelStr == "WARNING") return LogLevel::WARNING;
+    if (levelStr == "ERROR") return LogLevel::ERROR;
+    return LogLevel::INFO;
+}
 
 void BwtFS::Util::Logger::setLevel(LogLevel level){
     std::lock_guard<std::mutex> lock(__mutex);

@@ -11,14 +11,34 @@
 #include "file/bitmap.h"
 #include "file/system_file.h"
 namespace BwtFS::System{
+    /*
+    * 文件系统类
+    * 用于文件系统的读写操作
+    * 维护文件系统的基本信息
+    * @author: zaoweiceng
+    * @data: 2025-03-30
+    * 
+    * 
+    * 
+    * 
+    * 系统节点存储内容结构表:
+    *
+    *   ±--------------±-----------------±--------------------±--------------+ 
+    *   | 系统版本     | 系统大小        | 系统块大小          | 系统块数量   | 
+    *   ±--------------±-----------------±--------------------±--------------+ 
+    *   | 系统创建时间 | 系统位图起始位置 | 系统位图磨损起始位置| 系统位图大小 | 
+    *   ±--------------±-----------------±--------------------±--------------+ 
+    *   |                        系统数据部分                                 |
+    *   ±--------------±-----------------±--------------------±--------------+ 
+    *   | 系统修改时间 |    系统头校验    |              (预留空间)           | 
+    *   ±--------------±-----------------±--------------------±--------------+ 
+    * 
+    * 
+    * 
+    * 
+    */
     class FileSystem{
-        /*
-        * 文件系统类
-        * 用于文件系统的读写操作
-        * 维护文件系统的基本信息
-        * @author: zaoweiceng
-        * @data: 2025-03-30
-        */
+
         friend BwtFS::System::Bitmap;
         public:
             FileSystem();
@@ -50,27 +70,36 @@ namespace BwtFS::System{
             virtual bool check() const;
 
         private:
+            // 文件系统版本
             uint8_t VERSION;
+            // 文件系统大小
             size_t FILE_SIZE;
+            // 文件系统块大小
             size_t BLOCK_SIZE;
+            // 文件系统块数量
             size_t BLOCK_COUNT;
+            // 文件系统创建时间
             unsigned long long CREATE_TIME;
+            // 文件系统修改时间
             unsigned long long MODIFY_TIME;
-            unsigned long long START_BLOCK;
-            unsigned long long END_BLOCK;
+            // 文件系统位图起始位置
             unsigned long long BITMAP_START;
-            unsigned long long BITMAP_END;
+            // 文件系统位图磨损起始位置
             unsigned long long BITMAP_WEAR_START;
-            unsigned long long BITMAP_WEAR_END;
+            // 文件系统位图结束位置
             unsigned long long BITMAP_SIZE;
+            // 文件系统校验和
             size_t CHECHSUM;
-
+            // 文件系统路径
             std::string path;
-            std::string name;
+            // 文件系统是否打开
+            bool is_open;
+            // 文件系统起始块
             BwtFS::Node::Binary start_block;
+            // 文件系统结束块
             BwtFS::Node::Binary end_block;   
-            
-            BwtFS::System::File file;
+            // 文件系统对象
+            BwtFS::System::File* file;
 
             // 获取块大小
             virtual size_t get_block_size() const;

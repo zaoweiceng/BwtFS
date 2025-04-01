@@ -1,23 +1,7 @@
-#include<iostream>
-#include "file_system.hpp"
-#include "node/binary.h"
-#include "util/cell.h"
-#include "util/random.h"
-#include <cstddef>
-#include <string>
-#include "util/prefix.h"
-#include "util/log.h"
-#include <functional>
-
-void print(std::byte b){
-    std::cout << "0b";
-    for (int i = 7; i >= 0; --i) {
-        std::cout << ((std::to_integer<int>(b) >> i) & 1);
-    }
-    std::cout << std::endl;
-}
+#include "BwtFS.h"
 
 int main(void){
+    init();
     // auto p = BwtFS::Util::Prefix("O://pic.png");
     // size_t size = p.size();
     // std::cout << size << std::endl;
@@ -34,26 +18,15 @@ int main(void){
     //     std::cerr << "Failed to open file for writing." << std::endl;
     // }
     using BwtFS::Util::Logger;
-    using BwtFS::Util::LogLevel;
-    Logger::getInstance().setLevel(LogLevel::DEBUG);
-    Logger::getInstance().setConsole(true);
-    Logger::getInstance().setFile(true, "app.log");
+    auto config = BwtFs::Config::getInstance();
+    LOG_INFO <<  config["test"]["key"] ;
     
-    LOG(LogLevel::DEBUG) << "This is a debug message.";
-    LOG(LogLevel::INFO) << "User logged in. ID: " << 12345;
-    LOG(LogLevel::WARNING) << "User tried to access a protected resource.";
-    LOG(LogLevel::ERROR) << "Failed to open file.";
-    LOG_INFO << "This is an info message.";
-    LOG_WARNING << "This is a warning message.";
-    LOG_ERROR << "This is an error message.";
-    LOG_DEBUG << "This is a debug message.";
-    
-    std::hash<std::string> hash_fn;
-    BwtFS::Node::Binary binary1("Hello World!AAABBBCCC1234567890", BwtFS::Node::StringType::ASCII);
-    std::size_t string_hash_value = hash_fn(binary1.to_hex_string());
-    LOG_INFO << "Hash value: " << string_hash_value;
-    BwtFS::Node::Binary binary2("Hello World!", BwtFS::Node::StringType::ASCII);
-    LOG_INFO << "Hash value: " << hash_fn(binary2.to_hex_string());
+    // std::hash<std::string> hash_fn;
+    // BwtFS::Node::Binary binary1("Hello World!AAABBBCCC1234567890", BwtFS::Node::StringType::ASCII);
+    // std::size_t string_hash_value = hash_fn(binary1.to_hex_string());
+    // LOG_INFO << "Hash value: " << string_hash_value;
+    // BwtFS::Node::Binary binary2("Hello World!", BwtFS::Node::StringType::ASCII);
+    // LOG_INFO << "Hash value: " << hash_fn(binary2.to_hex_string());
 
     return 0;
 }
