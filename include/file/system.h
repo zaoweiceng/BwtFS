@@ -24,13 +24,13 @@ namespace BwtFS::System{
     * 系统节点存储内容结构表:
     *
     *   ±--------------±-----------------±--------------------±--------------+ 
-    *   | 系统版本     | 系统大小        | 系统块大小          | 系统块数量   | 
+    *   | 系统版本     | 系统大小        | 系统块大小          | 系统块数量     | 
     *   ±--------------±-----------------±--------------------±--------------+ 
-    *   | 系统创建时间 | 系统位图起始位置 | 系统位图磨损起始位置| 系统位图大小 | 
+    *   | 系统创建时间 | 系统位图起始位置 | 系统位图磨损起始位置| 系统位图大小     | 
     *   ±--------------±-----------------±--------------------±--------------+ 
     *   |                        系统数据部分                                 |
     *   ±--------------±-----------------±--------------------±--------------+ 
-    *   | 系统修改时间 |    系统头校验    |              (预留空间)           | 
+    *   | 系统修改时间 |    系统头校验    |    RCA_Seed         |(预留空间)    | 
     *   ±--------------±-----------------±--------------------±--------------+ 
     * 
     * 
@@ -38,36 +38,36 @@ namespace BwtFS::System{
     * 
     */
     class FileSystem{
-
+        // 限制仅位图类能访问位图信息，其它类无权限访问和修改
         friend BwtFS::System::Bitmap;
         public:
-            FileSystem();
-            FileSystem(const std::string& path);
+            FileSystem() = delete;
+            FileSystem(std::shared_ptr<BwtFS::System::File> file);
             FileSystem(const FileSystem& other) = delete;
             FileSystem& operator=(const FileSystem& other) = delete;
             FileSystem(FileSystem&& other) = delete;
             FileSystem& operator=(FileSystem&& other) = delete;
             ~FileSystem() = default;
 
-            // ------------ 文件系统操作 -------------
-            // 创建文件系统
-            const void NEW_FILESYSTEM(const std::string& path, size_t file_size);
-            // 打开文件系统
-            virtual void open();
-            virtual void open(const std::string& path);
-            // 关闭文件系统
-            virtual void close();
-            // 文件系统操作
-            virtual void read(const unsigned long long index);
-            virtual void write(const unsigned long long index, const BwtFS::Node::Binary& data);
-            // 获取文件系统信息
-            virtual void get_info();
-            // 获取文件系统版本
-            virtual uint8_t get_version() const;
-            // 获取文件系统大小
-            virtual size_t get_file_size() const;
-            // 校验文件系统
-            virtual bool check() const;
+            // // ------------ 文件系统操作 -------------
+            // // 创建文件系统
+            // const void NEW_FILESYSTEM(const std::string& path, size_t file_size);
+            // // 打开文件系统
+            // virtual void open();
+            // virtual void open(const std::string& path);
+            // // 关闭文件系统
+            // virtual void close();
+            // // 文件系统操作
+            // virtual void read(const unsigned long long index);
+            // virtual void write(const unsigned long long index, const BwtFS::Node::Binary& data);
+            // // 获取文件系统信息
+            // virtual void get_info();
+            // // 获取文件系统版本
+            // virtual uint8_t get_version() const;
+            // // 获取文件系统大小
+            // virtual size_t get_file_size() const;
+            // // 校验文件系统
+            // virtual bool check() const;
 
         private:
             // 文件系统版本
@@ -88,46 +88,44 @@ namespace BwtFS::System{
             unsigned long long BITMAP_WEAR_START;
             // 文件系统位图结束位置
             unsigned long long BITMAP_SIZE;
-            // 文件系统校验和
-            size_t CHECHSUM;
-            // 文件系统路径
-            std::string path;
             // 文件系统是否打开
             bool is_open;
-            // 文件系统起始块
-            BwtFS::Node::Binary start_block;
-            // 文件系统结束块
-            BwtFS::Node::Binary end_block;   
             // 文件系统对象
-            BwtFS::System::File* file;
+            std::shared_ptr<BwtFS::System::File> file;
 
-            // 获取块大小
-            virtual size_t get_block_size() const;
-            // 获取块数量
-            virtual size_t get_block_count() const;
-            // 获取创建时间
-            virtual unsigned long long get_create_time() const;
-            // 获取修改时间
-            virtual unsigned long long get_modify_time() const;
-            // 获取起始块
-            virtual unsigned long long get_start_block() const;
-            // 获取结束块
-            virtual unsigned long long get_end_block() const;
-            // 获取位图起始块
-            virtual unsigned long long get_bitmap_start() const;
-            // 获取位图结束块
-            virtual unsigned long long get_bitmap_end() const;
-            // 获取位图大小
-            virtual unsigned long long get_bitmap_size() const;
-            // 获取位图磨损起始块
-            virtual unsigned long long get_bitmap_wear_start() const;
-            // 获取位图磨损结束块
-            virtual unsigned long long get_bitmap_wear_end() const;
-            // 获取位图磨损大小
-            virtual unsigned long long get_bitmap_wear_size() const;
-            // 获取校验和
-            virtual size_t get_checksum() const;
+            // // 获取块大小
+            // virtual size_t get_block_size() const;
+            // // 获取块数量
+            // virtual size_t get_block_count() const;
+            // // 获取创建时间
+            // virtual unsigned long long get_create_time() const;
+            // // 获取修改时间
+            // virtual unsigned long long get_modify_time() const;
+            // // 获取起始块
+            // virtual unsigned long long get_start_block() const;
+            // // 获取结束块
+            // virtual unsigned long long get_end_block() const;
+            // // 获取位图起始块
+            // virtual unsigned long long get_bitmap_start() const;
+            // // 获取位图结束块
+            // virtual unsigned long long get_bitmap_end() const;
+            // // 获取位图大小
+            // virtual unsigned long long get_bitmap_size() const;
+            // // 获取位图磨损起始块
+            // virtual unsigned long long get_bitmap_wear_start() const;
+            // // 获取位图磨损结束块
+            // virtual unsigned long long get_bitmap_wear_end() const;
+            // // 获取位图磨损大小
+            // virtual unsigned long long get_bitmap_wear_size() const;
+            // // 获取校验和
+            // virtual size_t get_checksum() const;
     };
+
+    bool createBwtFS();
+    bool createBwtFS(const std::string& path, size_t file_size);
+    bool createBwtFS(const std::string& path, size_t file_size, const std::string& prefix);
+    bool initBwtFS(const std::string& path);
+    BwtFS::System::FileSystem openBwtFS(const std::string& path);
 
 }
 #endif

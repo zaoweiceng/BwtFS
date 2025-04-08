@@ -13,12 +13,9 @@ namespace BwtFS::System{
     * @data: 2025-03-30
     * 
     * 文件结构示例:
-    * +---------------+-------------------+-----------+
-    * | prefix (可选) | data (数据)       | prefix大小|
-    * +-------------------+-------------------+--------+
-    * | * * * * * * * | ddddddddddddddd   | 0 0 0 8   |
-    * +---------------+-------------------+-----------+
-    *       prefix         data内容          prefix大小 
+    * +---------------+--------------+-----------+
+    * | prefix (可选) | data (数据)   | prefix大小|
+    * +---------------+--------------+----------+
     * 
     * 
     */
@@ -31,25 +28,40 @@ namespace BwtFS::System{
             File& operator=(const File& other) = delete;
             File(File&& other) = delete;
             File& operator=(File&& other) = delete;
-            virtual ~File() = default;
+            ~File();
             // 读取数据
             // 传入块的位置，返回读取的数据
-            virtual BwtFS::Node::Binary read(unsigned long long index);
+            BwtFS::Node::Binary read(unsigned long long index);
+            // 读取数据
+            // 传入块的位置和大小，返回读取的数据
+            BwtFS::Node::Binary read(unsigned long long index, size_t size);
             // 写入数据
             // 传入块的位置和数据，写入数据
-            virtual void write(unsigned long long index, const BwtFS::Node::Binary& data);
-            // 添加前缀
-            // 传入前缀对象，添加前缀
-            virtual void addPrefix(const std::string& prefix);
+            void write(unsigned long long index, const BwtFS::Node::Binary& data);
+            // 创建文件
+            static unsigned createFile(const std::string& path, size_t size, std::string prefix = "");
+            // 获取文件大小
+            size_t getFileSize() const;
+            // 获取文件prefix大小
+            unsigned getPrefixSize() const;
+            // 获取文件是否有前缀
+            bool hasPrefix() const;
+            // 关闭文件
+            void close();
+
         private:
             // 文件对象
             std::shared_ptr<std::fstream> file;
+            // 文件缓冲区对象
+            std::filebuf* fb;
             // 文件是否有前缀
             bool has_prefix;
             // 前缀对象
             std::shared_ptr<BwtFS::Util::Prefix> prefix;
             // prefix的大小
-            size_t prefix_size;
+            unsigned prefix_size;
+            // 文件大小
+            size_t file_size;
     };
 }
 #endif

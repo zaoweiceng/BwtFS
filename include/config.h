@@ -10,8 +10,8 @@ namespace BwtFS{
     const size_t GB = 1024 * MB;       // 1GB
     const size_t TB = 1024 * GB;       // 1TB
     const size_t UNIT = KB;            // 块大小的单位
-    const uint32_t BLOCK_SIZE = 4*KB;  // 块大小
-    typedef uint32_t node_size;        // 节点内部大小：4KB，采用32位整型以提高性能
+    const unsigned BLOCK_SIZE = 4*KB;  // 块大小
+    typedef unsigned node_size;        // 节点内部大小：4KB，采用32位整型以提高性能
 
 
     namespace SIZE{
@@ -29,9 +29,13 @@ namespace BwtFS{
         // config
         const std::string CONFIG_PATH = "./bwtfs.ini";      // 配置文件路径
 
+        // system file
+        const std::string SYSTEM_FILE_PATH = "./bwtfs.bwt"; // 系统文件路径
+        const size_t SYSTEM_FILE_SIZE = 1 * GB;             // 系统文件大小
+        const std::string SYSTEM_FILE_PREFIX = "";          // 系统文件前缀
+        const size_t SYSTEM_FILE_MIN_SIZE = 64 * MB;        // 系统文件最小大小
+
 
     };
-        
-    
 }
 #endif

@@ -53,9 +53,10 @@ namespace BwtFs{
                     {"log_to_file", BwtFS::DefaultConfig::LOG_TO_FILE ? "true" : "false"}, 
                     {"log_to_console", BwtFS::DefaultConfig::LOG_TO_CONSOLE ? "true" : "false"}
                 }},
-                {"section2", {
-                    {"key3", "value3"}, 
-                    {"key4", "value4"}
+                {"system_file", {
+                    {"path", BwtFS::DefaultConfig::SYSTEM_FILE_PATH}, 
+                    {"size", std::to_string(BwtFS::DefaultConfig::SYSTEM_FILE_SIZE)}, 
+                    {"prefix", BwtFS::DefaultConfig::SYSTEM_FILE_PREFIX}
                 }}
             };
 

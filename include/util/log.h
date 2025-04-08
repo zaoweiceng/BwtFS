@@ -38,7 +38,9 @@ namespace BwtFS::Util{
             // 线程安全
             static Logger& getInstance(){
                 static Logger instance;
-                instance.init();
+                if (!instance.__init){
+                    instance.init();
+                }
                 return instance;
             }
             // 设置日志级别
@@ -82,6 +84,8 @@ namespace BwtFS::Util{
             std::ofstream __file_stream;
             // 初始化
             void init();
+            // 是否初始化
+            bool __init = false;
             // 构造函数
             // 私有化构造函数，禁止外部创建对象
             // 使用单例模式
