@@ -25,13 +25,13 @@ BwtFS::System::File::File(const std::string &path){
     file->open(path_, std::ios::in | std::ios::out | std::ios::binary);
     if (!file->is_open()){
         LOG_ERROR << "Failed to open file: " << path_;
-        throw std::runtime_error("Failed to open file");
+        throw std::runtime_error(std::string("Failed to open file: ") + __FILE__ + ":" + std::to_string(__LINE__));
     }
     LOG_DEBUG << "File opened: " << path_;
     fb = file->rdbuf();
     if (fb == nullptr){
         LOG_ERROR << "Failed to open file: " << path_;
-        throw std::runtime_error("Failed to open file");
+        throw std::runtime_error(std::string("Failed to open file: ") + __FILE__ + ":" + std::to_string(__LINE__));
     }
     LOG_DEBUG << "File buffer opened: " << path_;
     this->file_size = fs::file_size(path_);
@@ -47,18 +47,18 @@ BwtFS::System::File::File(const std::string &path){
 }
 
 BwtFS::System::File::~File(){
-    if (this->file != nullptr){
-        this->file->close();
-    }
     if (this->fb != nullptr){
         this->fb->close();
+    }
+    if (this->file != nullptr){
+        this->file->close();
     }
 }
 
 unsigned BwtFS::System::File::createFile(const std::string& path, size_t size, std::string prefix){
     if (size < BwtFS::DefaultConfig::SYSTEM_FILE_MIN_SIZE){
         LOG_ERROR << "File size is too small: " << size << ". Minimum size is " << BwtFS::DefaultConfig::SYSTEM_FILE_MIN_SIZE;
-        throw std::runtime_error("File size is too small");
+        throw std::runtime_error(std::string("File size is too small: ") + __FILE__ + ":" + std::to_string(__LINE__));
     }
     auto path_ = fs::path(path).make_preferred().string();
     auto parentPath = fs::path(path_).parent_path();
@@ -82,7 +82,7 @@ unsigned BwtFS::System::File::createFile(const std::string& path, size_t size, s
     }
     if (fs::exists(path_)){
         LOG_ERROR << "File already exists: " << path_;
-        throw std::runtime_error("File already exists");
+        throw std::runtime_error(std::string("File already exists: ") + __FILE__ + ":" + std::to_string(__LINE__));
     }
     std::ofstream file(path_, std::ios::binary);
     if (!file.is_open()){
@@ -135,7 +135,7 @@ BwtFS::Node::Binary BwtFS::System::File::read(unsigned long long index_){
     auto index = index_ + this->prefix_size;
     if (index >= this->file_size){
         LOG_ERROR << "Index out of range: " << index;
-        throw std::out_of_range("Index out of range");
+        throw std::out_of_range(std::string("Index out of range") + __FILE__ + ":" + std::to_string(__LINE__));
     }
     fb->pubseekpos(index);
     std::vector<std::byte> data(BwtFS::BLOCK_SIZE);
@@ -147,7 +147,7 @@ BwtFS::Node::Binary BwtFS::System::File::read(unsigned long long index_, size_t 
     auto index = index_ + this->prefix_size;
     if (index + size >= this->file_size){
         LOG_ERROR << "Index out of range: " << index;
-        throw std::out_of_range("Index out of range");
+        throw std::out_of_range(std::string("Index out of range") + __FILE__ + ":" + std::to_string(__LINE__));
     }
     fb->pubseekpos(index);
     std::vector<std::byte> data(size*BwtFS::BLOCK_SIZE);
@@ -159,10 +159,8 @@ void BwtFS::System::File::write(unsigned long long index_, const BwtFS::Node::Bi
     auto index = index_ + this->prefix_size;
     if (index + data.size() >= this->file_size){
         LOG_ERROR << "Index out of range: " << index;
-        throw std::out_of_range("Index out of range");
+        throw std::out_of_range(std::string("Index out of range") + __FILE__ + ":" + std::to_string(__LINE__));
     }
-    // LOG_DEBUG << "Writing data to file: " << index << ", size: " << data.size();
-    // LOG_DEBUG << "Data: " << data.to_hex_string();
     fb->pubseekpos(index);
     fb->sputn(reinterpret_cast<const char*>(data.read().data()), data.size());
 }
