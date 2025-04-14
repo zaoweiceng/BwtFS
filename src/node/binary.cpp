@@ -243,28 +243,20 @@ bool BwtFS::Node::Binary::write(const size_t index, const size_t size, std::vect
     return write(index, size, data.data());
 }
 
-bool BwtFS::Node::Binary::write(const size_t index, const std::byte* data){
-    if (this->binary_array == nullptr){
-        LOG_ERROR << "BwtFS::Node::Binary::write: Binary array is null";
-        throw std::runtime_error(std::string("BwtFS::Node::Binary::write: Binary array is null") + __FILE__ + ":" + std::to_string(__LINE__));
-    }
-    return write(index, this->binary_array->size() - index, data);
-}
-
 bool BwtFS::Node::Binary::write(const size_t index, const std::vector<std::byte>& data){
     if (this->binary_array == nullptr){
         LOG_ERROR << "BwtFS::Node::Binary::write: Binary array is null";
         throw std::runtime_error(std::string("BwtFS::Node::Binary::write: Binary array is null") + __FILE__ + ":" + std::to_string(__LINE__));
     }
-    return write(index, this->binary_array->size() - index, data.data());
+    return write(index, data.size(), data.data());
 }
 
-bool BwtFS::Node::Binary::write(const std::byte* data){
+bool BwtFS::Node::Binary::write(const std::byte* data, const size_t size){
     if (this->binary_array == nullptr){
         LOG_ERROR << "BwtFS::Node::Binary::write: Binary array is null";
         throw std::runtime_error(std::string("BwtFS::Node::Binary::write: Binary array is null") + __FILE__ + ":" + std::to_string(__LINE__));
     }
-    return write(0, this->binary_array->size(), data);
+    return write(0, size, data);
 }
 
 bool BwtFS::Node::Binary::write(const std::vector<std::byte>& data){
@@ -272,7 +264,7 @@ bool BwtFS::Node::Binary::write(const std::vector<std::byte>& data){
         LOG_ERROR << "BwtFS::Node::Binary::write: Binary array is null";
         throw std::runtime_error(std::string("BwtFS::Node::Binary::write: Binary array is null") + __FILE__ + ":" + std::to_string(__LINE__));
     }
-    return write(0, this->binary_array->size(), data.data());
+    return write(0, data.size(), data.data());
 }
 
 BwtFS::Node::Binary& BwtFS::Node::Binary::append(const size_t size, const std::byte* data){

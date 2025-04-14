@@ -12,32 +12,35 @@ namespace BwtFS::Node{
     */
     class WhiteNode : public BaseNode {
         public:
-            WhiteNode() = default;
-            ~WhiteNode() override = default;
+            // 构造函数
+            WhiteNode(node_size start, node_size length, BwtFS::Node::Binary data, BwtFS::Node::NodeType type);
+            WhiteNode(const BwtFS::Node::Binary& data);
+            // 析构函数
+            ~WhiteNode() override;
             // 读取数据
-            BwtFS::Node::Binary read(const unsigned long long index) override;
+            BwtFS::Node::Binary read(const unsigned index, node_size length) override;
             // 读取全部数据
             BwtFS::Node::Binary read() const;
             // 写入数据
-            void write(const unsigned long long index, BwtFS::Node::Binary& data) override;
+            void write(const unsigned index, BwtFS::Node::Binary& data) override;
             // 写入全部数据
             void write(const BwtFS::Node::Binary& data);
-            // 序列化
-            void fromBinary(const BwtFS::Node::Binary& data) override;
             // 反序列化
-            BwtFS::Node::Binary toBinary() const override;
+            void fromBinary(const BwtFS::Node::Binary& data) override;
+            // 序列化
+            BwtFS::Node::Binary toBinary() override;
             // 获取有效数据的长度
             size_t getLength() const;
             // 获取空余数据的长度
             size_t getFreeLength() const;
             // 获取节点的类型
             BwtFS::Node::NodeType getType() override;
+            // 初始化节点
+            static WhiteNode& initWhiteNode(BwtFS::Node::Binary data);
+            
 
         private:
-            size_t start;                   // 节点内数据起始位置
-            node_size length;               // 节点内数据长度
             BwtFS::Node::Binary data;       // 节点内数据
-            BwtFS::Node::NodeType type;     // 节点类型
     };
 }
 

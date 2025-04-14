@@ -76,12 +76,10 @@ namespace BwtFS::Node{
             virtual bool write(const size_t index, const size_t size, const std::byte* data);
             // 写入数据，参数为size_t类型和std::vector<std::byte>类型
             virtual bool write(const size_t index, const size_t size, std::vector<std::byte>& data);
-            // 写入数据，参数为size_t类型和std::byte*类型
-            virtual bool write(const size_t index, const std::byte* data);
             // 写入数据，参数为size_t类型和std::vector<std::byte>类型
             virtual bool write(const size_t index, const std::vector<std::byte>& data);
             // 写入数据，参数为std::byte*类型
-            virtual bool write(const std::byte* data);
+            virtual bool write(const std::byte* data, size_t size);
             // 写入数据，参数为std::vector<std::byte>类型
             virtual bool write(const std::vector<std::byte>& data);
         // ------------ 追加写 -------------

@@ -37,9 +37,27 @@ void test_bitmap_wear_balance() {
                 flag = false;
             }
         }
-        
+    }catch(const std::exception& e){
+        std::cerr << e.what() << '\n';
+    }
+}
 
-        
+void test_read_and_write() {
+    init();
+    using BwtFS::Util::Logger;
+    auto config = BwtFs::Config::getInstance();
+    try{
+        // BwtFS::System::File::createFile("O://test.png", 256*BwtFS::MB, "O://pic.png");
+        // BwtFS::System::initBwtFS("O://test.png");
+        auto system = BwtFS::System::openBwtFS("O://test.png");
+        LOG_INFO << system.getFreeSize() / BwtFS::MB << " MB";
+        auto data = BwtFS::Node::Binary("Hello World!", BwtFS::Node::StringType::ASCII);
+        auto bitmap = system.bitmap->getFreeBlock();
+        LOG_INFO << "Free block: " << bitmap;
+        system.bitmap->set(bitmap);
+        system.write(bitmap, data);
+        auto read_data = system.read(bitmap);
+        LOG_INFO << "Read data: " << read_data.to_ascll_string();
     }catch(const std::exception& e){
         std::cerr << e.what() << '\n';
     }
@@ -49,7 +67,7 @@ int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     using BwtFS::Util::Logger;
     int res = RUN_ALL_TESTS();
-    test_bitmap_wear_balance();
-    LOG_INFO << "All tests passed.";
+    // test_bitmap_wear_balance(); // PASS
+    // test_read_and_write();      // PASS
     return res;
 }

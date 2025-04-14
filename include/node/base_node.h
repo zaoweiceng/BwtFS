@@ -26,26 +26,29 @@ namespace BwtFS::Node {
     *   | 数据起始位置 |     数据长度     | 数据内容   | 
     *   ±--------------±-----------------±-------------±
     * 
+    * 注：一个节点的大小若不足BLOCK_SIZE，则剩余部分随机填充，且start和length用于指定有效数据的位置
     */
     class BaseNode {
         public:
+            BaseNode() = delete;
+            BaseNode(node_size start, node_size length, BwtFS::Node::NodeType type);
             virtual ~BaseNode() = default;
             // 读取数据
-            virtual BwtFS::Node::Binary read(const unsigned long long index) = 0;
+            virtual BwtFS::Node::Binary read(const unsigned index, node_size length) = 0;
             // 写入数据
-            virtual void write(const unsigned long long index, BwtFS::Node::Binary& data) = 0;
+            virtual void write(const unsigned index, BwtFS::Node::Binary& data) = 0;
             // 反序列化
             virtual void fromBinary(const BwtFS::Node::Binary& data) = 0;
             // 序列化
-            virtual BwtFS::Node::Binary toBinary() const = 0;
+            virtual BwtFS::Node::Binary toBinary() = 0;
             // 获取节点的类型
             virtual BwtFS::Node::NodeType getType() = 0;
         
-        private:
-            size_t start;                   // 节点内数据起始位置
+        protected:
+            node_size start;                // 节点内数据起始位置
             node_size length;               // 节点内数据长度
-            BwtFS::Node::Binary data;       // 节点内数据
             BwtFS::Node::NodeType type;     // 节点类型
     };
+    const static node_size NODE_FREE_SIZE = BLOCK_SIZE - sizeof(node_size) - sizeof(node_size); // 节点内数据的空余大小
 }
 #endif

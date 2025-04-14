@@ -10,6 +10,10 @@ namespace BwtFS::Util{
     // 返回随机数的vector, int类型
     // 注意: 生成的随机数是闭区间[min, max]
     std::vector<int> RandNumbers(int n, unsigned seed, int min, int max);
+    std::vector<std::byte> RandBytes(int n, unsigned seed, int min, int max);
+
+    // 生成随机数
+    int RandNumber(unsigned seed, int min, int max);
 };
 
 #endif

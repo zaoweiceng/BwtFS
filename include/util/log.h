@@ -59,8 +59,6 @@ namespace BwtFS::Util{
             // 记录日志
             // 传入日志级别，日志内容，文件名，行号
             void log(LogLevel level, const std::string& message, const std::string& file, int line);
-            // 检查文件是否需要滚动
-            void checkFileRollover();
         
         private:
             // 互斥锁，用于文件输出的线程安全

@@ -43,6 +43,13 @@ TEST(BinaryTest, WriteData){
     EXPECT_EQ(binary.to_hex_string(), "01050304");
 }
 
+TEST(BinaryTest, WriteDataOther){
+    BwtFS::Node::Binary binary("hellp world!", BwtFS::Node::StringType::ASCII);
+    binary.write(1, std::vector<std::byte>{std::byte{'c'}});
+    // std::cout << binary.to_ascll_string() << std::endl;
+    EXPECT_EQ(binary.to_ascll_string(), "hcllp world!");
+}
+
 TEST(BinaryTest, ReadData){
     BwtFS::Node::Binary binary(4);
     binary.write(std::vector<std::byte>{std::byte{1}, std::byte{2}, std::byte{3}, std::byte{4}});

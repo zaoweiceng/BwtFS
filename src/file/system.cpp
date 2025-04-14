@@ -150,6 +150,9 @@ BwtFS::System::FileSystem BwtFS::System::openBwtFS(const std::string& path){
     }
     LOG_INFO << "System verification passed: " << path_;
     LOG_INFO << "Last Modified: " << BwtFS::Util::timeToString(reinterpret_cast<unsigned long long&>(modify_time[0]));
+    auto fs = BwtFS::System::FileSystem(file);
+    fs.setHashValue(string_hash_value);
+    fs.setSeedOfCell(reinterpret_cast<unsigned&>(seed_of_cell[0]));
     return BwtFS::System::FileSystem(file);
 }
 
@@ -228,3 +231,55 @@ bool BwtFS::System::FileSystem::check() const{
 size_t BwtFS::System::FileSystem::getFreeSize() const{
     return this->FILE_SIZE - this->bitmap->getSystemFreeSize();
 }
+
+void BwtFS::System::FileSystem::updateModifyTime(){
+    this->MODIFY_TIME = std::time(nullptr);
+    BwtFS::Node::Binary binary(0);
+    binary.append(sizeof(this->MODIFY_TIME), reinterpret_cast<std::byte*>(&this->MODIFY_TIME));
+    binary.append(sizeof(this->STRING_HASH_VALUE), reinterpret_cast<std::byte*>(&STRING_HASH_VALUE));
+    binary.append(sizeof(unsigned), reinterpret_cast<std::byte*>(&SEED_OF_CELL));
+    this->file->write(this->BLOCK_COUNT - 1, binary);
+}
+
+void BwtFS::System::FileSystem::setHashValue(const size_t& hash_value){
+    this->STRING_HASH_VALUE = hash_value;
+}
+
+void BwtFS::System::FileSystem::setSeedOfCell(unsigned seed_of_cell){
+    this->SEED_OF_CELL = seed_of_cell;
+}
+
+BwtFS::Node::Binary BwtFS::System::FileSystem::read(const unsigned long long index){
+    if (index > this->BLOCK_COUNT){
+        LOG_ERROR <<  "Index out of range: " << index;
+        throw std::out_of_range(std::string("Index out of range") 
+        + __FILE__ + ":" + std::to_string(__LINE__));
+    }
+    return this->file->read(index);
+}
+
+void BwtFS::System::FileSystem::write(const unsigned long long index, const BwtFS::Node::Binary& data){
+    if (index > this->BLOCK_COUNT){
+        LOG_ERROR <<  "Index out of range: " << index;
+        throw std::out_of_range(std::string("Index out of range") 
+        + __FILE__ + ":" + std::to_string(__LINE__));
+    }
+    if (data.size() < this->BLOCK_SIZE){
+        LOG_WARNING << "Data size is less than block size: " 
+        << data.size() << " < " << this->BLOCK_SIZE;
+    }
+    if (data.size() > this->BLOCK_SIZE){
+        LOG_ERROR << "Data size is greater than block size: " 
+        << data.size() << " > " << this->BLOCK_SIZE;
+        throw std::out_of_range(std::string("Data size is greater than block size")
+        + __FILE__ + ":" + std::to_string(__LINE__));
+    }
+    try{
+        this->file->write(index, data);
+    }
+    catch(const std::exception& e){
+        LOG_ERROR << e.what();
+        std::cerr << e.what() << '\n';
+    }
+}
+

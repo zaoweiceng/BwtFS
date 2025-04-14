@@ -13,16 +13,16 @@ namespace BwtFS::Node{
     */
     class GrayNode:public BaseNode{
         public:
-            GrayNode() = default;
+            GrayNode(node_size start, node_size length, BwtFS::Node::Binary data, BwtFS::Node::NodeType type);
             ~GrayNode() override = default;
             // 读取数据
-            BwtFS::Node::Binary read(const unsigned long long index) override;
+            BwtFS::Node::Binary read(const unsigned index, node_size length) override;
             // 读取全部数据
             BwtFS::Node::Binary read();
             // 读取索引
             BwtFS::Node::Entry readEntry(const unsigned index);
             // 写入数据
-            void write(const unsigned long long index, BwtFS::Node::Binary& data) override;
+            void write(const unsigned index, BwtFS::Node::Binary& data) override;
             // 写入全部数据
             void write(const BwtFS::Node::Binary& data);
             // 写入索引
@@ -34,13 +34,13 @@ namespace BwtFS::Node{
             // 写入索引
             // 在索引的末尾添加多个索引
             void writeEntry(const std::vector<BwtFS::Node::Entry>& entries);
-            // 序列化
-            // 传入数据BLOCK_SIZE大小的Binary，返回序列化的数据
-            void fromBinary(const BwtFS::Node::Binary& data) override;
             // 反序列化
-            // 返回反序列化的数据
+            // 传入数据BLOCK_SIZE大小的Binary，返回序反列化的数据
+            void fromBinary(const BwtFS::Node::Binary& data) override;
+            // 序列化
+            // 返回序列化的数据
             // 返回BLOCK_SIZE大小的Binary
-            BwtFS::Node::Binary toBinary() const override;
+            BwtFS::Node::Binary toBinary() override;
 
 
             // 获取有效数据的长度
@@ -56,10 +56,9 @@ namespace BwtFS::Node{
 
 
         private:
-            size_t start;                               // 节点内数据起始位置
+            node_size start;                            // 节点内数据起始位置
             node_size length;                           // 节点内数据长度
-            BwtFS::Node::Binary data;                   // 节点内数据
-            std::vector<BwtFS::Node::Entry> entries;    // 节点内索引
+            BwtFS::Node::EntryNode entries;             // 节点内索引
             BwtFS::Node::NodeType type;                 // 节点类型
     };
 }

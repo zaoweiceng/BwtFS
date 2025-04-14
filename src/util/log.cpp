@@ -1,5 +1,6 @@
 #include "util/log.h"
 #include "util/ini_parser.h"
+#include "util/date.h"
 #include <iomanip>
 
 void BwtFS::Util::Logger::init() {
@@ -8,6 +9,9 @@ void BwtFS::Util::Logger::init() {
     __console = config.get("logging", "log_to_console", "true") == "true";
     __file = config.get("logging", "log_to_file", "false") == "true";
     __file_path = config.get("logging", "log_path", "");
+    __file_path = __file_path.find_last_not_of('.') == std::string::npos 
+                  ? __file_path + "_" + BwtFS::Util::timeToString(std::time(nullptr), "%Y%m%d") + ".log"
+                  : __file_path.substr(0, __file_path.find_last_of('.')) + "_" +  BwtFS::Util::timeToString(std::time(nullptr), "%Y%m%d") + ".log";
 
 }
 
@@ -96,29 +100,11 @@ void BwtFS::Util::Logger::log(LogLevel level, const std::string& message, const 
     }
     
     if (__file) {
-        checkFileRollover();
         if (!__file_stream.is_open()) {
             __file_stream.open(__file_path, std::ios::app);
         }
         if (__file_stream.good()) {
             __file_stream << formatMessage(level, message, file, line) << std::endl;
         }
-    }
-}
-
-void BwtFS::Util::Logger::checkFileRollover() {
-    if (!__file) return;
-    if (__file_path == "") return;
-    if (!__file_stream.is_open()) {
-        __file_stream.open(__file_path, std::ios::out | std::ios::app);
-    }
-    std::ifstream in(__file_path, std::ios::ate | std::ios::binary);
-    if (in.good() && in.tellg() > 10 * 1024 * 1024) { // 10MB
-        __file_stream.close();
-        size_t lastDot = __file_path.find_last_of('$');
-        std::string baseName = (lastDot == std::string::npos) ? __file_path : __file_path.substr(0, lastDot);
-        std::string newName = baseName + "$" + getCurrentTime() + ".log";
-        std::rename(__file_path.c_str(), newName.c_str());
-        __file_stream.open(__file_path, std::ios::app);
     }
 }

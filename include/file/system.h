@@ -51,8 +51,8 @@ namespace BwtFS::System{
 
             // // ------------ 文件系统操作 -------------
             // 文件系统操作
-            // virtual void read(const unsigned long long index);
-            // virtual void write(const unsigned long long index, const BwtFS::Node::Binary& data);
+            virtual BwtFS::Node::Binary read(const unsigned long long index);
+            virtual void write(const unsigned long long index, const BwtFS::Node::Binary& data);
             // 获取文件系统版本
             virtual uint8_t getVersion() const;
             // 获取文件系统大小
@@ -76,6 +76,10 @@ namespace BwtFS::System{
 
             std::shared_ptr<BwtFS::System::Bitmap> bitmap;
 
+            void setHashValue(const size_t& hash_value);
+
+            void setSeedOfCell(unsigned seed_of_cell);
+
         private:
             // 文件系统版本
             uint8_t VERSION;
@@ -95,11 +99,18 @@ namespace BwtFS::System{
             unsigned long long BITMAP_WEAR_START;
             // 文件系统位图大小
             unsigned long long BITMAP_SIZE;
+            // 文件系统字符串哈希值
+            size_t STRING_HASH_VALUE; 
+            // 文件系统随机数种子
+            unsigned SEED_OF_CELL;
+
             // 文件系统是否打开
             bool is_open;
             // 文件系统对象
             std::shared_ptr<BwtFS::System::File> file;
             // 文件系统位图对象
+
+            void updateModifyTime();
             
     };
 
