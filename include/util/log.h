@@ -84,6 +84,8 @@ namespace BwtFS::Util{
             void init();
             // 是否初始化
             bool __init = false;
+            // 时间记录
+            unsigned long long __time = std::time(nullptr);
             // 构造函数
             // 私有化构造函数，禁止外部创建对象
             // 使用单例模式
@@ -140,6 +142,8 @@ namespace BwtFS::Util{
     #define LOG_ERROR LOG(BwtFS::Util::LogLevel::ERROR)
     // Fatal日志
     #define LOG_FATAL LOG(BwtFS::Util::LogLevel::ERROR) << "FATAL ERROR: " << __FILE__ << ":" << __LINE__ << " - "
+    // 
+    #define LOG_CIALLO std::cout << "\033[32mCiallo～(∠·ω< )⌒★\033[0m" << std::endl;
 }
 
 

@@ -10,8 +10,8 @@ void BwtFS::Util::Logger::init() {
     __file = config.get("logging", "log_to_file", "false") == "true";
     __file_path = config.get("logging", "log_path", "");
     __file_path = __file_path.find_last_not_of('.') == std::string::npos 
-                  ? __file_path + "_" + BwtFS::Util::timeToString(std::time(nullptr), "%Y%m%d") + ".log"
-                  : __file_path.substr(0, __file_path.find_last_of('.')) + "_" +  BwtFS::Util::timeToString(std::time(nullptr), "%Y%m%d") + ".log";
+                  ? __file_path + "-" + BwtFS::Util::timeToString(std::time(nullptr), "%Y%m%d") + ".log"
+                  : __file_path.substr(0, __file_path.find_last_of('.')) + "-" +  BwtFS::Util::timeToString(std::time(nullptr), "%Y%m%d") + ".log";
 
 }
 
@@ -100,7 +100,15 @@ void BwtFS::Util::Logger::log(LogLevel level, const std::string& message, const 
     }
     
     if (__file) {
+        // 每天自动将日志保存到新的文件中
+        if (std::time(nullptr) - __time > 60*60*24) {
+            __file_stream.close();
+            __time = std::time(nullptr);
+        }
         if (!__file_stream.is_open()) {
+            __file_path = __file_path.find_last_not_of('-') == std::string::npos 
+                        ? __file_path + "-" + timeToString(std::time(nullptr), "%Y%m%d") + ".log"
+                        : __file_path.substr(0, __file_path.find_last_of('-')) + "-" +  timeToString(std::time(nullptr), "%Y%m%d") + ".log";
             __file_stream.open(__file_path, std::ios::app);
         }
         if (__file_stream.good()) {

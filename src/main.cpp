@@ -1,7 +1,7 @@
 #include "BwtFS.h"
 
 int main(void){
-    // init();
+    init();
     using BwtFS::Util::Logger;
     // auto config = BwtFs::Config::getInstance();
     // LOG_INFO <<  config["test"]["key"] ;
@@ -35,5 +35,6 @@ int main(void){
     LOG_INFO << sizeof(bool);
     LOG_INFO << sizeof(uint8_t);
     LOG_INFO << sizeof(BwtFS::Node::NodeType::WHITE_NODE);
+    LOG_CIALLO;
     return 0;
 }
