@@ -69,10 +69,19 @@ BwtFS::Node::Binary& BwtFS::Node::Binary::operator=(Binary&& other){
             LOG_ERROR << "operator=: Other Binary array is null";
             throw std::runtime_error(std::string("operator=: Other Binary array is null") + __FILE__ + ":" + std::to_string(__LINE__));
         }
-        this->binary_array = other.binary_array;
+        this->binary_array = std::move(other.binary_array);
         other.binary_array = nullptr;
     }
     return *this;
+}
+
+BwtFS::Node::Binary::Binary(BwtFS::Node::Binary&& other){
+    if (other.binary_array == nullptr){
+        LOG_ERROR << "constructor: Other Binary array is null";
+        throw std::runtime_error(std::string("constructor: Other Binary array is null") + __FILE__ + ":" + std::to_string(__LINE__));
+    }
+    this->binary_array = std::move(other.binary_array);
+    other.binary_array = nullptr;
 }
 
 BwtFS::Node::Binary& BwtFS::Node::Binary::operator+=(Binary&& other){
@@ -568,4 +577,11 @@ bool BwtFS::Node::Binary::empty() const{
 
 bool BwtFS::Node::Binary::is_null() const{
     return this->binary_array == nullptr;
+}
+
+std::byte* BwtFS::Node::Binary::data(){
+    if (this->binary_array == nullptr){
+        throw std::runtime_error(std::string("data: Binary array is null") + __FILE__ + ":" + std::to_string(__LINE__));
+    }
+    return this->binary_array->data();
 }

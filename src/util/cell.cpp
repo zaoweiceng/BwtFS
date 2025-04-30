@@ -98,3 +98,11 @@ void BwtFS::Util::RCA::apply(std::byte& b, short operation, bool forward){
             break;
     }
 }
+
+void BwtFS::Util::RCA::setSeed(unsigned seed) { 
+    this->seed = seed; 
+}
+
+void BwtFS::Util::RCA::setBinary(BwtFS::Node::Binary& binary) { 
+    this->binary = binary; 
+}

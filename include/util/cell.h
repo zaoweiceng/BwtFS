@@ -17,6 +17,7 @@ namespace BwtFS::Util{
             // 构造函数
             // seed: 细胞自动机的种子
             // binary: 细胞自动机的二进制数据
+            RCA() = default;
             RCA(unsigned seed, BwtFS::Node::Binary& binary);
             RCA(RCA const& other) = delete;
             RCA& operator=(RCA const& other) = delete;
@@ -45,6 +46,10 @@ namespace BwtFS::Util{
             static void TD_BACK(std::byte& b);
             //应用操作
             static void apply(std::byte& b, short operation, bool forward);
+            // 设置细胞自动机的种子
+            void setSeed(unsigned seed);
+            // 设置细胞自动机的二进制数据
+            void setBinary(BwtFS::Node::Binary& binary);
 
 
         private:

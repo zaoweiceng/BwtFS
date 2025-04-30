@@ -39,7 +39,7 @@ namespace BwtFS::Node{
             // 赋值运算符，参数为Binary类型
             Binary& operator=(const Binary& other);
             // 移动构造函数，参数为Binary类型
-            Binary(Binary&& other) = default;
+            Binary(Binary&& other);
             // 移动赋值运算符，参数为Binary类型
             Binary& operator=(Binary&& other) ;
             Binary& operator+=(Binary&& other);
@@ -109,6 +109,8 @@ namespace BwtFS::Node{
             virtual bool empty() const;
             // 判断数据指针是否为空
             virtual bool is_null() const;
+            // 获取数据指针
+            virtual std::byte* data();
 
         // ----------- 静态函数 ------------
             // 将std::byte*类型的数据转换为字符串
