@@ -1,95 +1,89 @@
 #ifndef ENTRY_H
 #define ENTRY_H
 #include "node/binary.h"
-#include "node/base_node.h"
-#include "config.h"
+#include <algorithm>
+#include <vector>
+#include <random>
+#include "util/log.h"
+
+using BwtFS::Util::Logger;
+
 namespace BwtFS::Node{
-    /*
-    * NodeState类
-    * 标记节点的状态
-    * IN_USED: 节点在使用中
-    * FREE: 节点未使用
-    * DELETED: 节点已删除
-    * 该状态用于标记节点的使用情况
-    */
-    enum class NodeState{
-        IN_USED = 0, // 节点在使用中
-        FREE = 1,   // 节点未使用
-        DELETED = 2 // 节点已删除
+    enum class NodeType{
+        WHITE_NODE = 0, // 白节点
+        BLACK_NODE = 1, // 黑节点
     };
-    /*
-    * Entry类
-    * 该类是一个节点的实现类，继承自BaseNode
-    * 该类为节点的索引
-    * @author: zaoweiceng
-    * @date: 2025-04-02
-    */
-    class Entry {
-        public:
-            Entry() = default;
-            ~Entry() = default;
-           
-            // 反序列化
-            // 传入数据，返回序列化的数据
-            static std::shared_ptr<BwtFS::Node::Entry> fromBinary(const BwtFS::Node::Binary& data);
-            // 序列化
-            // 返回序列化的数据
-            BwtFS::Node::Binary toBinary();
 
-            size_t getIndex() const;            // 获取节点索引
-            Entry& setIndex(size_t index);        // 设置节点索引
-            bool isRCA() const;                 // 获取是否启用RCA
-            Entry& setRCA(bool is_rca);           // 设置是否启用RCA
-            uint8_t getLevel() const;           // 获取RCA级别
-            Entry& setLevel(uint8_t level);       // 设置RCA级别
-            NodeType getType() const;           // 获取节点类型
-            Entry& setType(NodeType type);        // 设置节点类型
-            NodeState getState() const;         // 获取节点状态
-            Entry& setState(NodeState state);     // 设置节点状态
-            unsigned getSeed() const;           // 获取随机数种子
-            Entry& setSeed(unsigned seed);        // 设置随机数种子
-
-            const static size_t ENTRY_SIZE = 16; // 节点索引的大小
+    // entry 定义：bitmap位置、节点类型、起始位置、长度、随机种子
+    class entry {
         private:
-            size_t index;       // 节点索引         8字节
-            bool is_rca;        // 是否启用RCA      1字节
-            uint8_t level;      // RCA级别          1字节
-            NodeType type;      // 节点类型         1字节
-            NodeState state;    // 节点状态         1字节
-            unsigned seed;      // 随机数种子       4字节
-    };
-    class EntryNode{
+            size_t   bitmap;        // 位图
+            NodeType type;          // 节点类型
+            uint16_t start;         // 起始位置
+            uint16_t length;        // 长度
+            uint16_t seed;          // 随机数种子
+            uint8_t  level;         // 节点的层级, 如果为0，则表示没有加密
 
         public:
-            EntryNode();
-            ~EntryNode() = default;
-            // 反序列化
-            // 传入数据，返回序列化的数据
-            static BwtFS::Node::EntryNode fromBinary(const BwtFS::Node::Binary& data, size_t size);
-            // 序列化
-            // 返回序列化的数据
-            BwtFS::Node::Binary toBinary();
-            // 获取节点索引
-            // 返回节点索引的数量
-            size_t getEntryCount() const;
-            // 设置节点索引
-            // 传入节点索引的数量，设置节点索引的数量
-            EntryNode& setEntryCount(size_t count);
-            // 获取节点索引
-            std::shared_ptr<BwtFS::Node::Entry> getEntry(size_t index) const;
-            // 设置节点索引
-            // 传入节点索引，设置节点索引
-            EntryNode& setEntry(size_t index, BwtFS::Node::Entry& entry);
-            EntryNode& setEntry(size_t index, BwtFS::Node::Entry&& entry);
-            // 添加节点
-            // 传入节点索引，添加节点索引
-            EntryNode& addEntry(BwtFS::Node::Entry& entry);
-            EntryNode& addEntry(BwtFS::Node::Entry&& entry);
+            entry(size_t bitmap, NodeType type, uint16_t start, uint16_t length, uint16_t seed = 0, uint8_t level = 0)
+            : bitmap(bitmap), type(type), start(start), length(length), seed(seed), level(level) {}
+            entry(const entry&) = default;
+            inline size_t get_bitmap() const { return bitmap; }
+            inline NodeType get_type() const { return type; }
+            inline uint16_t get_start() const { return start; }
+            inline uint16_t get_length() const { return length; }
+            inline uint16_t get_seed() const { return seed; }
+            inline uint8_t get_level() const { return level; }
+            Binary to_binary();
+            static entry from_binary(Binary& binary_data);
+            static inline size_t size() {
+                return sizeof(size_t) + sizeof(bool) + sizeof(uint16_t) + sizeof(uint16_t) + sizeof(uint16_t) + sizeof(uint8_t);
+            }
+    };
+
+
+    class entry_list{
+        public:
+            entry_list(const entry_list&){
+                this->entries = std::vector<entry>();
+            }
+            entry_list(entry_list&&) = default;
+            entry_list& operator=(const entry_list&) = default;
+            entry_list& operator=(entry_list&&) = default;
+            entry_list(std::vector<entry>&& entries) : entries(std::move(entries)) {}
+            entry_list(const std::vector<entry>& entries) : entries(entries) {};
+            entry_list() : entries() {}
+
+            inline void add_entry(const entry& e) {
+                entries.push_back(e);
+            }
+
+            inline void add_entry(entry&& e) {
+                entries.push_back(std::move(e));
+            }
+
+            inline entry get_entry(size_t index) {
+                if (index >= entries.size()) {
+                    throw std::out_of_range("Index out of range");
+                }
+                return entries[index];
+            }
+
+            inline size_t size() const {
+                return entries.size();
+            }
+
+            static entry_list from_binary(Binary& binary_data, int num_entries);
+
+            Binary to_binary();
+
+            void shuffle() {
+                std::shuffle(entries.begin(), entries.end(), std::mt19937(std::random_device()()));
+            }
 
         private:
-            std::shared_ptr<std::vector<Entry>> entries; // 节点索引
-            size_t entry_size;          // 节点索引的大小
-            size_t entry_count;         // 节点索引的数量
+            std::vector<entry> entries;
+
     };
 }
 

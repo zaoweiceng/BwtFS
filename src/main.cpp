@@ -1,4 +1,6 @@
 #include "BwtFS.h"
+#include "util/secure_ptr.h"
+
 
 int main(void){
     init();
@@ -32,9 +34,14 @@ int main(void){
     // }catch(const std::exception& e){
     //     std::cerr << e.what() << '\n';
     // }
-    LOG_INFO << sizeof(bool);
-    LOG_INFO << sizeof(uint8_t);
-    LOG_INFO << sizeof(BwtFS::Node::NodeType::WHITE_NODE);
-    LOG_CIALLO;
+    // LOG_INFO << sizeof(bool);
+    // LOG_INFO << sizeof(uint8_t);
+    // LOG_INFO << sizeof(BwtFS::Node::NodeType::WHITE_NODE);
+    // LOG_CIALLO;
+
+    auto p = make_secure<Binary>("AACCAA", BwtFS::Node::StringType::ASCII);
+
+    LOG_INFO << "Secure pointer value: " << p->to_base64_string();
+
     return 0;
 }

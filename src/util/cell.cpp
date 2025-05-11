@@ -1,6 +1,7 @@
 #include "util/cell.h"
 #include "util/random.h"
 #include <cstddef>
+#include "util/log.h"
 
 BwtFS::Util::RCA::RCA(unsigned seed, BwtFS::Node::Binary& binary){
     this->seed = seed;
@@ -101,6 +102,11 @@ void BwtFS::Util::RCA::apply(std::byte& b, short operation, bool forward){
 
 void BwtFS::Util::RCA::setSeed(unsigned seed) { 
     this->seed = seed; 
+    if (this->binary.size() == 0) {
+        LOG_WARNING << "Binary is empty, cannot set seed";
+        throw std::runtime_error("Binary is empty");
+    }
+    this->rule = BwtFS::Util::RandNumbers(binary.size(), seed, 0, 3);
 }
 
 void BwtFS::Util::RCA::setBinary(BwtFS::Node::Binary& binary) { 

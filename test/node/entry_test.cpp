@@ -1,55 +1,30 @@
+#include "node/bw_tree.h"
 #include "node/entry.h"
 #include "util/log.h"
 #include "gtest/gtest.h"
 
 using BwtFS::Util::Logger;
-
+using BwtFS::Node::entry;
+using BwtFS::Node::NodeType;
+using BwtFS::Node::entry_list;
+using BwtFS::Node::Binary;
 TEST(EntryTest, serializeEntry){
-    BwtFS::Node::Entry entry;
-    entry.setIndex(99564);
-    entry.setRCA(true);
-    entry.setLevel(2);
-    entry.setType(BwtFS::Node::NodeType::WHITE_NODE);
-    entry.setState(BwtFS::Node::NodeState::IN_USED);
-    entry.setSeed(65530);
-
-    auto data = entry.toBinary();
-    // LOG_INFO << data.to_hex_string();
-    auto new_entry = BwtFS::Node::Entry::fromBinary(data);
-
-    EXPECT_EQ(entry.getIndex(), new_entry->getIndex());
-    EXPECT_EQ(entry.isRCA(), new_entry->isRCA());
-    EXPECT_EQ(entry.getLevel(), new_entry->getLevel());
-    EXPECT_EQ(entry.getType(), new_entry->getType());
-    EXPECT_EQ(entry.getState(), new_entry->getState());
-    EXPECT_EQ(entry.getSeed(), new_entry->getSeed());
-}
-
-TEST(EntryTest, EntryNode){
-    BwtFS::Node::Entry entry = BwtFS::Node::Entry()
-                                .setIndex(1)
-                                .setRCA(true)
-                                .setLevel(2)
-                                .setType(BwtFS::Node::NodeType::WHITE_NODE)
-                                .setState(BwtFS::Node::NodeState::IN_USED)
-                                .setSeed(65530);
-    BwtFS::Node::Entry entry1 = BwtFS::Node::Entry()
-                                .setIndex(2)
-                                .setRCA(false)
-                                .setLevel(3)
-                                .setType(BwtFS::Node::NodeType::WHITE_NODE)
-                                .setState(BwtFS::Node::NodeState::IN_USED)
-                                .setSeed(65531);
+    entry_list list;
+    for (int i = 0; i < 1; i++){
+        entry e(std::time(nullptr), NodeType::BLACK_NODE, 1, 4096, std::time(nullptr), 1);
+        list.add_entry(std::move(e));
+    }
+    Binary binary_data = list.to_binary();
+    // LOG_INFO << "Entry list size: " << list.size();
+    // LOG_INFO << "Entry list size: " << binary_data.size();
+    // LOG_INFO << "Entry list: " << binary_data.to_hex_string();
+    entry_list new_list = entry_list::from_binary(binary_data, 1);
     
-    BwtFS::Node::EntryNode entry_node;
-    entry_node.addEntry(entry).addEntry(std::move(entry1));
-    EXPECT_EQ(entry_node.getEntryCount(), 2);
-    EXPECT_EQ(entry_node.getEntry(0)->getIndex(), 1);
-    auto data = entry_node.toBinary();
-    BwtFS::Node::EntryNode entry_node1 = BwtFS::Node::EntryNode::fromBinary(data, 2);
-    EXPECT_EQ(entry_node1.getEntryCount(), 2);
-    EXPECT_EQ(entry_node1.getEntry(0)->getIndex(), 1);
-    EXPECT_EQ(entry_node1.getEntry(1)->getIndex(), 2);
-    EXPECT_EQ(entry_node1.getEntry(0)->isRCA(), true);
-    EXPECT_EQ(entry_node1.getEntry(1)->isRCA(), false);
+    for (size_t i = 0; i < new_list.size(); i++){
+        entry e = new_list.get_entry(i);
+        EXPECT_EQ(e.get_type(), NodeType::BLACK_NODE);
+        EXPECT_EQ(e.get_start(), 1);
+        EXPECT_EQ(e.get_length(), 4096);
+        EXPECT_EQ(e.get_level(), 1);
+    }
 }
