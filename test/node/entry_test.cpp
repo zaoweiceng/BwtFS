@@ -1,4 +1,3 @@
-#include "node/bw_tree.h"
 #include "node/entry.h"
 #include "util/log.h"
 #include "gtest/gtest.h"

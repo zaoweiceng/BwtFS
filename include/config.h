@@ -18,6 +18,8 @@ namespace BwtFS{
         const size_t __SIZE_OF_VERSION = sizeof(BwtFS::VERSION);            // 文件系统版本的大小
         const size_t __SIZE_OF_UNIT = sizeof(BwtFS::UNIT);                  // 块大小的单位的大小
         const size_t __SIZE_OF_BLOCK_SIZE = sizeof(BwtFS::BLOCK_SIZE);      // 块大小的大小
+        const size_t __MEMORY_POOL_INIT_SIZE = 16;                          // 内存池初始大小
+        const size_t __THREAD_POOL_SIZE = 4;                                // 线程池大小
     };
 
     namespace DefaultConfig{

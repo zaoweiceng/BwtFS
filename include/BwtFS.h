@@ -6,10 +6,6 @@
 #include "node/binary.h"
 #include "util/prefix.h"
 #include "node/entry.h"
-#include "node/base_node.h"
-#include "node/white_node.h"
-#include "node/black_node.h"
-#include "node/gray_node.h"
 #include "file/system.h"
 
 

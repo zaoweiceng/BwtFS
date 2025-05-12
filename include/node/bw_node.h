@@ -1,5 +1,5 @@
-#ifndef __BWT_H__
-#define __BWT_H__
+#ifndef __BWN_H__
+#define __BWN_H__
 #include <mutex>
 #include <condition_variable>
 #include <future>
@@ -270,4 +270,4 @@ namespace BwtFS::Node{
 
     // 打开文件时使用secure_ptr
 }
-#endif // __BWT_H__
+#endif // __BWN_H__
