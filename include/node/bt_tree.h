@@ -4,6 +4,7 @@
 #include <map>
 #include <vector>
 #include <queue>
+#include <stack>
 #include "bw_node.h"
 #include "binary.h"
 #include "util/secure_ptr.h"
@@ -13,9 +14,11 @@
 #include "util/random.h"
 #include "util/cell.h"
 #include "util/safe_queue.h"
+#include "file/system.h"
 #include "entry.h"
 #include "config.h"
 #include "bw_node.h"
+#include "entry.h"
 namespace BwtFS::Node{
 
     struct file_data{
@@ -23,7 +26,16 @@ namespace BwtFS::Node{
         uint16_t size;
     };
 
+    struct white_node_info{
+        Binary data;
+        unsigned start;
+        unsigned length;
+    };
+
     typedef file_data TreeNode;
+
+    typedef white_node_info WhiteNodeInfo;
+
     constexpr size_t SIZE_OF_NODE_DATA = BwtFS::BLOCK_SIZE - sizeof(uint8_t);
 
 
@@ -68,10 +80,10 @@ namespace BwtFS::Node{
             * 文件数据生成的节点为白节点
             * 返回白节点的二进制数据
             */
-            Binary get_node(char* data, int index){
+            WhiteNodeInfo get_node(int index){
                 if (m_nodes.empty()){
                     LOG_ERROR << "No available nodes in the pool";
-                    return Binary();
+                    return {Binary(), 0, 0};
                 }
                 TreeNode* node;
                 m_nodes.dequeue(node);
@@ -79,22 +91,33 @@ namespace BwtFS::Node{
                 auto wn = white_node<void>(wnb, index);
                 auto binary_data = wn.to_binary();
                 m_pool.destroy(node);
-                return binary_data;
+                return {binary_data, wn.get_start(), wn.get_length()};
             }
             /*
             * 将数据写入黑白树
             */
-            void write(char* data){
-                TreeNode* node = m_pool.create();
-                node->size = strlen(data);
-                strcpy(reinterpret_cast<char*>(node->data), data);
-                m_nodes.enqueue(node);
-            }
             void write(char* data, size_t size){
-                TreeNode* node = m_pool.create();
-                node->size = size;
-                strcpy(reinterpret_cast<char*>(node->data), data);
-                m_nodes.enqueue(node);
+                if (this->m_cache_data == nullptr){
+                    this->get_node();
+                }
+                while(size){
+                    size_t copy_size = std::min(size, SIZE_OF_NODE_DATA - m_cache_data->size);
+                    std::memcpy(m_cache_data->data + m_cache_data->size, data, copy_size);
+                    size -= copy_size;
+                    m_cache_data->size += copy_size;
+                    if (m_cache_data->size == SIZE_OF_NODE_DATA){
+                        m_nodes.enqueue(m_cache_data);
+                        this->get_node();
+                    }
+                }
+            }
+            /*
+            * 将缓存的数据写入黑白树
+            */
+            void flush(){
+                if (m_cache_data != nullptr && m_cache_data->size > 0){
+                    m_nodes.enqueue(m_cache_data);
+                }
             }
             /*
             * 从黑白树中读取数据
@@ -102,13 +125,42 @@ namespace BwtFS::Node{
             void read(char* data, size_t size){
                 // 读取数据的逻辑
             }
+
+            int get_node_count(){
+                return m_nodes.size();
+            }
+            /*
+            * 生成entry
+            */
+            entry generate_entry(int index, unsigned start, unsigned length, unsigned seed, uint8_t level, bool is_black){
+                if (is_black){
+                    // 生成黑节点的entry
+                    return entry(index, NodeType::BLACK_NODE, start, length, seed, level);
+                }
+                // 生成entry的逻辑
+                return entry(index, NodeType::WHITE_NODE, start, length, seed, level);
+            }
+
             private:
                 // 内存池
                 MemoryPool<TreeNode>& m_pool = get_pool<TreeNode>(BwtFS::SIZE::__MEMORY_POOL_INIT_SIZE);
                 safe_queue<TreeNode*> m_nodes;
-                ThreadPool m_thread_pool = ThreadPool(BwtFS::SIZE::__THREAD_POOL_SIZE);;
-
-        };
+                ThreadPool m_thread_pool = ThreadPool(BwtFS::SIZE::__THREAD_POOL_SIZE);
+                TreeNode* m_cache_data = nullptr;
+                black_node<RCAEncryptor>* m_black_node = nullptr;
+                
+                TreeNode* get_node(){
+                    this->m_cache_data = m_pool.create();
+                    this->m_cache_data->size = 0;
+                    return this->m_cache_data;
+                }
+                void release_node(){
+                    if (this->m_cache_data != nullptr){
+                        m_pool.destroy(this->m_cache_data);
+                        this->m_cache_data = nullptr;
+                    }
+                }
+            };
     
 }
 

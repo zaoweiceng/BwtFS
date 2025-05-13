@@ -39,8 +39,8 @@ namespace BwtFS::System{
             uint8_t getWearBlock(const size_t index) const;
             // 初始化位图
             void init(unsigned last_index);
-            // 获取系统空闲大小
-            size_t getSystemFreeSize() const;
+            // 获取系统大小
+            size_t getSystemUsedSize() const;
 
 
         private:

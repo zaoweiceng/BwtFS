@@ -229,7 +229,11 @@ bool BwtFS::System::FileSystem::check() const{
 }
 
 size_t BwtFS::System::FileSystem::getFreeSize() const{
-    return this->FILE_SIZE - this->bitmap->getSystemFreeSize();
+    return this->FILE_SIZE - this->bitmap->getSystemUsedSize();
+}
+
+size_t BwtFS::System::FileSystem::getFilesSize() const{
+    return this->bitmap->getSystemUsedSize();
 }
 
 void BwtFS::System::FileSystem::updateModifyTime(){
@@ -255,6 +259,7 @@ BwtFS::Node::Binary BwtFS::System::FileSystem::read(const unsigned long long ind
         throw std::out_of_range(std::string("Index out of range") 
         + __FILE__ + ":" + std::to_string(__LINE__));
     }
+    std::shared_lock<std::shared_mutex> lock(rw_lock); // 共享锁，允许多个读取
     return this->file->read(index);
 }
 
@@ -275,6 +280,8 @@ void BwtFS::System::FileSystem::write(const unsigned long long index, const BwtF
         + __FILE__ + ":" + std::to_string(__LINE__));
     }
     try{
+        // 独占锁，只允许一个写入
+        std::unique_lock<std::shared_mutex> lock(this->rw_lock);
         this->file->write(index, data);
     }
     catch(const std::exception& e){

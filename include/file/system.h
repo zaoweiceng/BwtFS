@@ -5,6 +5,8 @@
 #include <vector>
 #include <fstream>
 #include <iostream>
+#include <shared_mutex>
+#include <thread>
 #include "config.h"
 #include "node/binary.h"
 #include "util/prefix.h"
@@ -71,6 +73,8 @@ namespace BwtFS::System{
             virtual bool isOpen() const;
             // 获取文件系统空闲空间
             virtual size_t getFreeSize() const;
+            // 获取文件系统已用空间
+            virtual size_t getFilesSize() const;
             
             size_t getBitmapSize() const;
 
@@ -108,7 +112,9 @@ namespace BwtFS::System{
             bool is_open;
             // 文件系统对象
             std::shared_ptr<BwtFS::System::File> file;
-            // 文件系统位图对象
+            
+            // 读写锁
+            std::shared_mutex rw_lock;
 
             void updateModifyTime();
             

@@ -139,21 +139,21 @@ uint8_t BwtFS::System::Bitmap::getWearBlock(const size_t index) const {
     return (uint8_t)this->bitmap_wear.get(index);
 }
 
-size_t BwtFS::System::Bitmap::getSystemFreeSize() const {
-    size_t free_size = 0, count = 0;
+size_t BwtFS::System::Bitmap::getSystemUsedSize() const {
+    size_t used_size = 0, count = 0;
     for (size_t i = 0; i < this->bitmap.size(); i++) {
         auto byte = (uint8_t)this->bitmap.get(i);
         for (size_t j = 0; j < 8; j++) {
             if ((byte >> j) & 1) {
-                free_size++;
+                used_size++;
             }
             count++;
             if (count >= this->bitmap_count) {
-                return free_size*BwtFS::BLOCK_SIZE;
+                return used_size*BwtFS::BLOCK_SIZE;
             }
         }
     }
-    return free_size*BwtFS::BLOCK_SIZE;
+    return used_size*BwtFS::BLOCK_SIZE;
 }
 
 void BwtFS::System::Bitmap::init_bpm(){
