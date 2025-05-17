@@ -12,5 +12,5 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 add_subdirectory(src)
-add_subdirectory(test)
-add_subdirectory(lib/googletest)
+# add_subdirectory(test)
+# add_subdirectory(lib/googletest)

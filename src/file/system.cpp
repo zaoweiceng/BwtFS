@@ -93,7 +93,7 @@ bool BwtFS::System::initBwtFS(const std::string& path){
     return true;
 }
 
-BwtFS::System::FileSystem BwtFS::System::openBwtFS(const std::string& path){
+std::shared_ptr<BwtFS::System::FileSystem> BwtFS::System::openBwtFS(const std::string& path){
     auto path_ = std::filesystem::path(path).make_preferred().string();
     if (!std::filesystem::exists(path_)){
         LOG_ERROR << "File does not exist: " << path_;
@@ -153,7 +153,16 @@ BwtFS::System::FileSystem BwtFS::System::openBwtFS(const std::string& path){
     auto fs = BwtFS::System::FileSystem(file);
     fs.setHashValue(string_hash_value);
     fs.setSeedOfCell(reinterpret_cast<unsigned&>(seed_of_cell[0]));
-    return BwtFS::System::FileSystem(file);
+    BwtFS::System::FS = std::make_shared<BwtFS::System::FileSystem>(file);
+    return BwtFS::System::FS;
+}
+
+std::shared_ptr<BwtFS::System::FileSystem> BwtFS::System::getBwtFS(){
+    if (BwtFS::System::FS == nullptr){
+        LOG_ERROR << "File system is not initialized: " << __FILE__ << ":" << __LINE__;
+        throw std::runtime_error(std::string("File system is not initialized: ") + __FILE__ + ":" + std::to_string(__LINE__));
+    }
+    return BwtFS::System::FS;
 }
 
 BwtFS::System::FileSystem::FileSystem(std::shared_ptr<BwtFS::System::File> file){
@@ -259,8 +268,8 @@ BwtFS::Node::Binary BwtFS::System::FileSystem::read(const unsigned long long ind
         throw std::out_of_range(std::string("Index out of range") 
         + __FILE__ + ":" + std::to_string(__LINE__));
     }
-    std::shared_lock<std::shared_mutex> lock(rw_lock); // 共享锁，允许多个读取
-    return this->file->read(index);
+    // std::shared_lock<std::shared_mutex> lock(rw_lock); // 共享锁，允许多个读取
+    return this->file->read(index*BwtFS::BLOCK_SIZE);
 }
 
 void BwtFS::System::FileSystem::write(const unsigned long long index, const BwtFS::Node::Binary& data){
@@ -281,8 +290,8 @@ void BwtFS::System::FileSystem::write(const unsigned long long index, const BwtF
     }
     try{
         // 独占锁，只允许一个写入
-        std::unique_lock<std::shared_mutex> lock(this->rw_lock);
-        this->file->write(index, data);
+        // std::unique_lock<std::shared_mutex> lock(this->rw_lock);
+        this->file->write(index*BwtFS::BLOCK_SIZE, data);
     }
     catch(const std::exception& e){
         LOG_ERROR << e.what();

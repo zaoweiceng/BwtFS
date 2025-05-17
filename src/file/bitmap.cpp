@@ -44,6 +44,21 @@ void BwtFS::System::Bitmap::set(const size_t index) {
     this->save_bitmap_wear();
 }
 
+void BwtFS::System::Bitmap::set_(const size_t index) {
+    // LOG_DEBUG << "index: " << index << " size: " << this->size;
+    if (index >= this->size*8) {
+        LOG_ERROR << "Index out of range: " << index;
+        throw std::out_of_range(std::string("Index out of range") + __FILE__ + ":" + std::to_string(__LINE__));
+    }
+    auto byte_index = index / 8;
+    auto bit_index = index % 8;
+    auto byte = (uint8_t)this->bitmap.get(byte_index);
+    auto bit = (uint8_t)(byte | (1 << bit_index));
+    this->bitmap.set(byte_index, std::byte(bit));
+    this->save_bitmap();
+    auto wear = (uint8_t)this->bitmap_wear.get(index);
+}
+
 void BwtFS::System::Bitmap::clear(const size_t index) {
     // LOG_DEBUG << "index: " << index << " size: " << this->size;
     if (index >= this->size*8) {
@@ -117,15 +132,15 @@ void BwtFS::System::Bitmap::init(unsigned last_index) {
         this->bitmap_wear.set(i, std::byte(0));
     }
     for (size_t i = this->bitmap_start; i < this->bitmap_start + this->size / BwtFS::BLOCK_SIZE; i++) {
-        this->bitmap_wear.set(i, std::byte(255));
-        this->set(i);
+        this->bitmap_wear.set(i, std::byte(0));
+        this->set_(i);
     }
     for (size_t i = this->bitmap_wear_start; i < this->bitmap_wear_start + this->size_wear / BwtFS::BLOCK_SIZE; i++) {
-        this->bitmap_wear.set(i, std::byte(255));
-        this->set(i);
+        this->bitmap_wear.set(i, std::byte(0));
+        this->set_(i);
     }
-    this->set(0);
-    this->set(last_index);
+    this->set_(0);
+    this->set_(last_index);
     this->bitmap_wear.set(0, std::byte(255));
     this->bitmap_wear.set(last_index, std::byte(255));
     this->save();
@@ -157,8 +172,8 @@ size_t BwtFS::System::Bitmap::getSystemUsedSize() const {
 }
 
 void BwtFS::System::Bitmap::init_bpm(){
-    LOG_INFO << "Initializing bpm...";
-    for (size_t i = 0; i < this->size; i++) {
+    LOG_DEBUG << "Initializing bpm...";
+    for (size_t i = 0; i < this->size-1; i++) {
         auto byte = (uint8_t)this->bitmap.get(i);
         for (size_t j = 0; j < 8; j++) {
             if ((byte >> j) & 1) {

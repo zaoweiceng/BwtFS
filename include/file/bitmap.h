@@ -63,6 +63,8 @@ namespace BwtFS::System{
             // BPM
             std::vector<std::pair<size_t, std::pair<bool, uint8_t>>> bpm;
 
+            void set_(const size_t index);
+
             // 初始化BPM
             void init_bpm();
             // bpm指针

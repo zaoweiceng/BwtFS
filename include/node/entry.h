@@ -14,6 +14,8 @@ namespace BwtFS::Node{
         BLACK_NODE = 1, // 黑节点
     };
 
+    constexpr size_t SIZE_OF_ENTRY = sizeof(size_t) + sizeof(bool) + sizeof(uint16_t) + sizeof(uint16_t) + sizeof(uint16_t) + sizeof(uint8_t);
+
     // entry 定义：bitmap位置、节点类型、起始位置、长度、随机种子
     class entry {
         private:
@@ -60,6 +62,10 @@ namespace BwtFS::Node{
 
             inline void add_entry(entry&& e) {
                 entries.push_back(std::move(e));
+            }
+
+            inline bool is_fill() const {
+                return entries.size() >= (BwtFS::BLOCK_SIZE - sizeof(uint8_t)) / SIZE_OF_ENTRY;
             }
 
             inline entry get_entry(size_t index) {

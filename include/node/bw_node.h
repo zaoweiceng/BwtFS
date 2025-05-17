@@ -32,7 +32,7 @@ namespace BwtFS::Node{
              : m_value(value), start(start), length(length){
                 E e;
                 if constexpr (E::value == "RCAEncryptor") {
-                    auto seeds = BwtFS::Util::RandNumbers(level, seed, 0, 1<<31);
+                    auto seeds = BwtFS::Util::RandNumbers<uint16_t>(level, seed, 0, 1<<15);
                     std::reverse(seeds.begin(), seeds.end());
                     for (int i = 0; i < level; i++) {
                         E e;
@@ -62,21 +62,21 @@ namespace BwtFS::Node{
         protected:
             Binary m_value; // 节点内容
             uint8_t index; // 节点索引
-            unsigned start; // 节点起始位置
-            unsigned length; // 节点长度
+            uint16_t start; // 节点起始位置
+            uint16_t length; // 节点长度
     };
 
     template<typename E>
     class white_node : public tree_base_node<E>{
         public:
 
-            white_node(Binary value, uint8_t level, unsigned seed, unsigned start, unsigned length)
+            white_node(Binary value, uint8_t level, uint16_t seed, uint16_t start, uint16_t length)
              : tree_base_node<E>(value, level, seed, start, length) {
                 this->index = *reinterpret_cast<uint8_t*>(value.read(0, sizeof(uint8_t)).data());
                 this->m_value = Binary(value.read(start, length));
              }
 
-            white_node(Binary value, unsigned start, unsigned length) {
+            white_node(Binary value, uint16_t start, uint16_t length) {
                 // LOG_DEBUG << "start: " << start << ", length: " << length;
                 this->index = *reinterpret_cast<uint8_t*>(value.read(0, sizeof(uint8_t)).data());
                 // LOG_DEBUG << "index: " << this->index;
@@ -106,9 +106,9 @@ namespace BwtFS::Node{
                 return binary_data;
             }
 
-            Binary to_binary(unsigned seed, uint8_t level) {
+            Binary to_binary(uint16_t seed, uint8_t level) {
                 Binary binary_data = this->to_binary();
-                auto seeds = BwtFS::Util::RandNumbers(level, seed, 0, 1<<31);
+                auto seeds = BwtFS::Util::RandNumbers<uint16_t>(level, seed, 0, 1<<15);
                 if constexpr (E::value == "RCAEncryptor") {
                     for (int i = 0; i < level; i++) {
                         E e;
@@ -137,11 +137,11 @@ namespace BwtFS::Node{
                 return this->index;
             }
 
-            unsigned get_start() const {
+            uint16_t get_start() const {
                 return this->start;
             }
 
-            unsigned get_length() const {
+            uint16_t get_length() const {
                 return this->length;
             }
 
@@ -154,7 +154,7 @@ namespace BwtFS::Node{
     class black_node : public tree_base_node<E>{
         public:
         
-            black_node(Binary value, uint8_t level, unsigned seed, unsigned start, unsigned length)
+            black_node(Binary value, uint8_t level, uint16_t seed, uint16_t start, uint16_t length)
              : tree_base_node<E>(value, level, seed, start, length), m_entry_list(make_secure<entry_list>()) {
                 this->index = *reinterpret_cast<uint8_t*>(value.read(0, sizeof(uint8_t)).data());
                 this->m_value = Binary(value.read(start, length));
@@ -164,7 +164,7 @@ namespace BwtFS::Node{
                 }
             }
 
-            black_node(Binary value, unsigned start, unsigned length)
+            black_node(Binary value, uint16_t start, uint16_t length)
              : m_entry_list(make_secure<entry_list>()) {
                 this->length = 0;
                 this->index = *reinterpret_cast<uint8_t*>(value.read(0, sizeof(uint8_t)).data());
@@ -210,9 +210,9 @@ namespace BwtFS::Node{
                 return binary_data;
             }
 
-            Binary to_binary(unsigned seed, uint8_t level) {
+            Binary to_binary(uint16_t seed, uint8_t level) {
                 Binary binary_data = this->to_binary();
-                auto seeds = BwtFS::Util::RandNumbers(level, seed, 0, 1<<31);
+                auto seeds = BwtFS::Util::RandNumbers<uint16_t>(level, seed, 0, 1<<15);
                 if constexpr (E::value == "RCAEncryptor") {
                     for (int i = 0; i < level; i++) {
                         E e;
@@ -225,16 +225,6 @@ namespace BwtFS::Node{
                     e.encrypt(binary_data.data(), binary_data.size());
                 }
                 return binary_data;
-            }
-
-            void set_data(Binary value) {
-                this->m_value.write(value);
-                this->length = value.size();
-            }
-
-            void append_data(Binary value) {
-                this->m_value.append(value);
-                this->length += value.size();
             }
 
             uint8_t get_index() const {
@@ -256,6 +246,14 @@ namespace BwtFS::Node{
             void add_entry(const entry& e) {
                 m_entry_list->add_entry(e);
                 this->length += entry::size();
+            }
+
+            bool is_fill() {
+                return m_entry_list->is_fill();
+            }
+
+            size_t size() {
+                return m_entry_list->size();
             }
 
             entry get_entry(size_t index) {

@@ -20,9 +20,9 @@ TEST(WhiteNode, encryptTest){
     BwtFS::Node::Binary data("Hello world!!!", BwtFS::Node::StringType::ASCII);
     // LOG_INFO << "Binary: " << data.to_hex_string();
     auto wtn = BwtFS::Node::white_node<RCAEncryptor>(data, 255);
-    auto e_data = wtn.to_binary(25631, 1);
+    auto e_data = wtn.to_binary(255, 1);
     // LOG_INFO << "WhiteNode: " << e_data.to_hex_string();
-    auto wtn2 = BwtFS::Node::white_node<RCAEncryptor>(e_data, 1, 25631, wtn.get_start(), wtn.get_length());
+    auto wtn2 = BwtFS::Node::white_node<RCAEncryptor>(e_data, 1, 255, wtn.get_start(), wtn.get_length());
     EXPECT_EQ(wtn2.get_index(), 255);
     EXPECT_EQ(wtn2.data().to_hex_string(), data.to_hex_string());
 }
@@ -31,9 +31,9 @@ TEST(WhiteNode, mutiEncryptTest){
     BwtFS::Node::Binary data("Hello world!!!", BwtFS::Node::StringType::ASCII);
     // LOG_INFO << "Binary: " << data.to_hex_string();
     auto wtn = BwtFS::Node::white_node<RCAEncryptor>(data, 25);
-    auto e_data = wtn.to_binary(25631, 5);
+    auto e_data = wtn.to_binary(2565, 5);
     // LOG_INFO << "WhiteNode: " << e_data.to_hex_string();
-    auto wtn2 = BwtFS::Node::white_node<RCAEncryptor>(e_data, 5, 25631, wtn.get_start(), wtn.get_length());
+    auto wtn2 = BwtFS::Node::white_node<RCAEncryptor>(e_data, 5, 2565, wtn.get_start(), wtn.get_length());
     EXPECT_EQ(wtn2.get_index(), 25);
     EXPECT_EQ(wtn2.data().to_hex_string(), data.to_hex_string());
 }
@@ -116,9 +116,9 @@ TEST(BlackNode, encryptTest){
     for(int i = 0; i < 250; i++){
         bkn.add_entry(BwtFS::Node::entry(i, BwtFS::Node::NodeType::WHITE_NODE, 1024, 2048, 555, 1));
     }
-    auto binary_data = bkn.to_binary(25631, 1);
+    auto binary_data = bkn.to_binary(523, 1);
     // LOG_INFO << "BlackNode: " << binary_data.to_hex_string();
-    auto bkn2 = BwtFS::Node::black_node<RCAEncryptor>(binary_data, 1, 25631, bkn.get_start(), bkn.get_length());
+    auto bkn2 = BwtFS::Node::black_node<RCAEncryptor>(binary_data, 1, 523, bkn.get_start(), bkn.get_length());
     EXPECT_EQ(bkn2.get_index(), 10);
     for(int i = 0; i < 250; i++){
         auto e = bkn2.get_entry(i);

@@ -124,7 +124,9 @@ namespace BwtFS::System{
     bool createBwtFS(const std::string& path, size_t file_size);
     bool createBwtFS(const std::string& path, size_t file_size, const std::string& prefix);
     bool initBwtFS(const std::string& path);
-    BwtFS::System::FileSystem openBwtFS(const std::string& path);
+    std::shared_ptr<BwtFS::System::FileSystem> openBwtFS(const std::string& path);
+    std::shared_ptr<BwtFS::System::FileSystem> getBwtFS();
+    static std::shared_ptr<BwtFS::System::FileSystem> FS;
 
 }
 #endif

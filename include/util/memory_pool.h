@@ -162,6 +162,8 @@ protected:
 };
 
 // 模板化内存池
+// 重写MemoryPoolBase类之后，可以将内存池的指针指向块设备，以实现在块设备上分配内存
+// 这里的内存池是使用链表来管理空闲块
 template <typename T>
 class MemoryPool : private MemoryPoolBase {
 public:

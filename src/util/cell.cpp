@@ -6,7 +6,7 @@
 BwtFS::Util::RCA::RCA(unsigned seed, BwtFS::Node::Binary& binary){
     this->seed = seed;
     this->binary = binary;
-    this->rule = BwtFS::Util::RandNumbers(binary.size(), seed, 0, 3);
+    this->rule = BwtFS::Util::RandNumbers<int>(binary.size(), seed, 0, 3);
 }
 
 void BwtFS::Util::RCA::forward(){
@@ -106,7 +106,7 @@ void BwtFS::Util::RCA::setSeed(unsigned seed) {
         LOG_WARNING << "Binary is empty, cannot set seed";
         throw std::runtime_error("Binary is empty");
     }
-    this->rule = BwtFS::Util::RandNumbers(binary.size(), seed, 0, 3);
+    this->rule = BwtFS::Util::RandNumbers<int>(binary.size(), seed, 0, 3);
 }
 
 void BwtFS::Util::RCA::setBinary(BwtFS::Node::Binary& binary) { 
