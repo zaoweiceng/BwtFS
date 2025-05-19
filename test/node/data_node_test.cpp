@@ -120,7 +120,8 @@ TEST(BlackNode, encryptTest){
     // LOG_INFO << "BlackNode: " << binary_data.to_hex_string();
     auto bkn2 = BwtFS::Node::black_node<RCAEncryptor>(binary_data, 1, 523, bkn.get_start(), bkn.get_length());
     EXPECT_EQ(bkn2.get_index(), 10);
-    for(int i = 0; i < 250; i++){
+    EXPECT_EQ(bkn2.get_size_of_entry(), 250);
+    for(int i = 0; i < bkn2.get_size_of_entry(); i++){
         auto e = bkn2.get_entry(i);
         EXPECT_EQ(e.get_type(), BwtFS::Node::NodeType::WHITE_NODE);
         EXPECT_EQ(e.get_start(), 1024);

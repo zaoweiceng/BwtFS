@@ -268,7 +268,7 @@ BwtFS::Node::Binary BwtFS::System::FileSystem::read(const unsigned long long ind
         throw std::out_of_range(std::string("Index out of range") 
         + __FILE__ + ":" + std::to_string(__LINE__));
     }
-    // std::shared_lock<std::shared_mutex> lock(rw_lock); // 共享锁，允许多个读取
+    std::shared_lock<std::shared_mutex> lock(rw_lock); // 共享锁，允许多个读取
     return this->file->read(index*BwtFS::BLOCK_SIZE);
 }
 
@@ -290,7 +290,7 @@ void BwtFS::System::FileSystem::write(const unsigned long long index, const BwtF
     }
     try{
         // 独占锁，只允许一个写入
-        // std::unique_lock<std::shared_mutex> lock(this->rw_lock);
+        std::unique_lock<std::shared_mutex> lock(this->rw_lock);
         this->file->write(index*BwtFS::BLOCK_SIZE, data);
     }
     catch(const std::exception& e){

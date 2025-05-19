@@ -41,11 +41,28 @@ namespace BwtFS::Node{
         size_t bitmap;
     };
 
+    struct visit_node{
+        size_t bitmap;
+        uint16_t start;
+        uint16_t length;
+        uint16_t seed;
+        uint8_t level;
+    };
+
+    struct visit_node_list{
+        std::vector<visit_node> nodes;
+        size_t size;
+    };
+
     typedef file_data TreeNode;
 
     typedef white_node_info WhiteNodeInfo;
 
     typedef binary_node_info BinaryNodeInfo;
+
+    typedef visit_node VisitNode;
+
+    typedef visit_node_list VisitNodeList;
 
     constexpr size_t SIZE_OF_NODE_DATA = BwtFS::BLOCK_SIZE - sizeof(uint8_t);
 
@@ -111,7 +128,7 @@ namespace BwtFS::Node{
                     m_data_queue.dequeue(data);
                     // LOG_INFO << "Bitmap: " << data.bitmap;
                     // LOG_INFO << "Data: " << data.data.size();
-
+                    // LOG_INFO << reinterpret_cast<const char*>(data.data.data());
                     m_fs->write(data.bitmap, data.data);
                     m_size_queue.enqueue(data.bitmap);
                 }
@@ -123,6 +140,170 @@ namespace BwtFS::Node{
             bool m_write_finished = false;
     };
 
+    class TreeDataReader{
+        public:
+            TreeDataReader(const std::string& token){
+                Token t(token); 
+                m_fs = BwtFS::System::getBwtFS();
+                Binary starter_node = m_fs->read(t.get_bitmap());
+                // LOG_INFO << "Bitmap: " << t.get_bitmap();
+                black_node<RCAEncryptor> node(
+                    starter_node, t.get_level(), t.get_seed(),
+                     t.get_start(), t.get_length());
+                m_entry_queue.emplace(t.get_bitmap(), NodeType::BLACK_NODE, t.get_start(), 
+                                        t.get_length(), t.get_seed(), t.get_level());
+                init();
+            }
+            TreeDataReader(const TreeDataReader&) = delete;
+            TreeDataReader& operator=(const TreeDataReader&) = delete;
+            TreeDataReader(TreeDataReader&&) = delete;
+            TreeDataReader& operator=(TreeDataReader&&) = delete;
+            ~TreeDataReader() = default;
+
+            /*
+            * 读取数据
+            * 返回读取的块的索引
+            */
+            // Binary read(size_t index, size_t size){
+            //     Binary binary_data;
+            //     int visit_index = index / (BwtFS::BLOCK_SIZE - sizeof(uint8_t));
+            //     if (visit_index >= m_visit_nodes->size()){
+            //         LOG_ERROR << "Get Tree Data: Out of range";
+            //         throw std::runtime_error("Get Tree Data: Out of range");
+            //     }
+            //     int node_data_start = index - visit_index * (BwtFS::BLOCK_SIZE - sizeof(uint8_t));
+            //     size_t size_ = size;
+            //     while(binary_data.size() < size){
+            //         auto node = m_visit_nodes->at(visit_index);
+            //         Binary data = m_fs->read(node.bitmap);
+            //         white_node<RCAEncryptor> wnode(
+            //             data, node.level, node.seed, node.start, node.length);
+            //         int read_size = std::min(wnode.data().size() - node_data_start, size_);
+            //         // LOG_INFO << "Read size: " << read_size;
+            //         binary_data.append(wnode.data().read(node_data_start, read_size)); 
+            //         node_data_start = 0;
+            //         size_ -= read_size;
+            //         // LOG_INFO << "Size: " << size_ << ", visit_index: " << visit_index;
+            //         if (size_ <= 0){
+            //             break;
+            //         }
+            //         visit_index++;
+            //         if (visit_index >= m_visit_nodes->size()){
+            //             break;
+            //         }
+            //     }
+            //     return binary_data;
+            // }
+            Binary read(size_t index, size_t size){
+                Binary binary_data;
+                int visit_index = index / (BwtFS::BLOCK_SIZE - sizeof(uint8_t));
+                if (visit_index >= m_visit_nodes->size()){
+                    LOG_ERROR << "Get Tree Data: Out of range";
+                    throw std::runtime_error("Get Tree Data: Out of range");
+                }
+                int node_data_start = index - visit_index * (BwtFS::BLOCK_SIZE - sizeof(uint8_t));
+                size_t size_ = size;
+                while(binary_data.size() < size){
+                    auto node = m_visit_nodes->at(visit_index);
+                    Binary data = m_fs->read(node.bitmap);
+                    white_node<RCAEncryptor> wnode(
+                        data, node.level, node.seed, node.start, node.length);
+                    int read_size;
+                    if (wnode.data().size() - node_data_start < size_){
+                        read_size = size_;
+                        binary_data.append(wnode.data().read(node_data_start, read_size)); 
+                        node_data_start += read_size;
+                    }else{
+                        read_size = wnode.data().size();
+                        binary_data.append(wnode.data().read(node_data_start, read_size)); 
+                        node_data_start = 0;
+                    }
+                    size_ -= read_size;
+                    if (size_ <= 0){
+                        break;
+                    }
+                    visit_index++;
+                    if (visit_index >= m_visit_nodes->size()){
+                        break;
+                    }
+                }
+                return binary_data;
+            }
+        private:
+            std::shared_ptr<BwtFS::System::FileSystem> m_fs;
+            std::queue<entry> m_entry_queue;
+            secure_ptr<std::vector<VisitNode>> m_visit_nodes = 
+                    make_secure<std::vector<VisitNode>>();
+            /*
+            * 初始化访问节点
+            */
+            void init(){
+                // LOG_INFO << "Init visit nodes";
+                while(!m_entry_queue.empty()){
+                    auto entry = m_entry_queue.front();
+                    m_entry_queue.pop();
+                    Binary bd = m_fs->read(entry.get_bitmap());
+                    black_node<RCAEncryptor> node(
+                        bd, entry.get_level(), entry.get_seed(),
+                         entry.get_start(), entry.get_length());
+                    std::vector<BwtFS::Node::entry> entries;
+                    for (int i = 0; i < node.get_size_of_entry(); i++){
+                        auto e = node.get_entry(i);
+                        entries.push_back(e);
+                    }
+                    // LOG_INFO << "Entry size: " << entries.size();
+                    // LOG_INFO << "index: " << int(node.get_index());
+                    // std::sort(entries.begin(), entries.end(), 
+                    //     [this](const BwtFS::Node::entry& a, const BwtFS::Node::entry& b){
+                    //         auto binary_a = this->m_fs->read(a.get_bitmap());
+                    //         auto binary_b = this->m_fs->read(b.get_bitmap());
+                    //         int index_a;
+                    //         int index_b;
+                    //         if(a.get_type() == NodeType::BLACK_NODE){
+                    //             auto temp_node = black_node<RCAEncryptor>
+                    //                         (binary_a, a.get_level(), a.get_seed(),
+                    //                          a.get_start(), a.get_length());
+                    //             index_a = temp_node.get_index();
+                    //         }else{
+                    //             auto temp_node = white_node<RCAEncryptor>
+                    //                         (binary_a, a.get_level(), a.get_seed(),
+                    //                          a.get_start(), a.get_length());
+                    //             index_a = temp_node.get_index();
+                    //         }
+                    //         if(b.get_type() == NodeType::BLACK_NODE){
+                    //             auto temp_node = black_node<RCAEncryptor>
+                    //                         (binary_b, b.get_level(), b.get_seed(),
+                    //                          b.get_start(), b.get_length());
+                    //             index_b = temp_node.get_index();
+                    //         }else{
+                    //             auto temp_node = white_node<RCAEncryptor>
+                    //                         (binary_b, b.get_level(), b.get_seed(),
+                    //                          b.get_start(), b.get_length());
+                    //             index_b = temp_node.get_index();
+                    //         }
+                    //         return index_a < index_b;
+                    // });
+                    // LOG_INFO << "Sorted entry size: " << entries.size();
+                    for (int i = 0; i < entries.size(); i++){
+                        auto e = entries[i];
+                        VisitNode node;
+                        node.bitmap = e.get_bitmap();
+                        node.start = e.get_start();
+                        node.length = e.get_length();
+                        node.seed = e.get_seed();
+                        node.level = e.get_level();
+                        if (e.get_type() == NodeType::BLACK_NODE){
+                            m_entry_queue.emplace(node.bitmap, NodeType::BLACK_NODE, 
+                                                    node.start, node.length, 
+                                                    node.seed, node.level);
+                        }else{
+                            m_visit_nodes->push_back(node);
+                        }
+                    }
+                }
+                // std::reverse(m_visit_nodes->begin(), m_visit_nodes->end());
+            }
+    };
     /*
     * 黑白树
     * 采用内存池来分配内存
@@ -158,16 +339,21 @@ namespace BwtFS::Node{
                     this->m_transaction_writer.write_fs();
                 });
             };
+
             bw_tree(const std::string & token){
-                m_token = token;
-                Token t(token);
+                m_tree_data_reader = new TreeDataReader(token);
             }
 
             bw_tree(const bw_tree&) = delete;
             bw_tree& operator=(const bw_tree&) = delete;
             bw_tree(bw_tree&&) = delete;
             bw_tree& operator=(bw_tree&&) = delete;
-            ~bw_tree() = default;
+            ~bw_tree(){
+                if (m_tree_data_reader != nullptr){
+                    delete m_tree_data_reader;
+                    m_tree_data_reader = nullptr;
+                }
+            }
             /*
             * 将数据写入黑白树
             */
@@ -175,12 +361,16 @@ namespace BwtFS::Node{
                 if (this->m_cache_data == nullptr){
                     this->get_node();
                 }
+                size_t used_size = 0;
                 while(size){
                     size_t copy_size = std::min(size, SIZE_OF_NODE_DATA - m_cache_data->size);
-                    std::memcpy(m_cache_data->data + m_cache_data->size, data, copy_size);
+                    std::memcpy(m_cache_data->data + m_cache_data->size, data + used_size, copy_size);
                     size -= copy_size;
                     m_cache_data->size += copy_size;
+                    used_size += copy_size;
+                    // LOG_INFO << "copy_size: " << copy_size << ", size: " << size << ", m_cache_data->size: " << m_cache_data->size;
                     if (m_cache_data->size == SIZE_OF_NODE_DATA){
+                        // LOG_INFO << std::string(reinterpret_cast<char*>(m_cache_data->data), SIZE_OF_NODE_DATA);
                         m_nodes.enqueue(m_cache_data);
                         this->get_node();
                     }
@@ -191,6 +381,7 @@ namespace BwtFS::Node{
             */
             void flush(){
                 if (m_cache_data != nullptr && m_cache_data->size > 0){
+                    // LOG_INFO << std::string(reinterpret_cast<char*>(m_cache_data->data), SIZE_OF_NODE_DATA);
                     m_nodes.enqueue(m_cache_data);
                 }
                 set_write_finished(true);
@@ -198,8 +389,9 @@ namespace BwtFS::Node{
             /*
             * 从黑白树中读取数据
             */
-            void read(char* data, size_t size){
+            Binary read(size_t index, size_t size){
                 // 读取数据的逻辑
+                return m_tree_data_reader->read(index, size);
             }
 
             int get_node_count(){
@@ -222,13 +414,69 @@ namespace BwtFS::Node{
             *   8. 重复步骤2-6，直到文件结束
             *   9. 文件完全写入之后，生成token
             */
+            // std::string generate_tree(){
+            //     int bkn_index = 0;
+            //     black_node<RCAEncryptor>* bkn = new black_node<RCAEncryptor>(bkn_index++);
+            //     constexpr int entry_num = BwtFS::BLOCK_SIZE / SIZE_OF_ENTRY;
+            //     constexpr int max_level = 3;
+            //     auto seeds = BwtFS::Util::RandNumbers<uint16_t>(entry_num, std::hash<BwtFS::Node::black_node<RCAEncryptor>*>{}(bkn), 0, 1 << 15);
+            //     auto levels = BwtFS::Util::RandNumbers<uint8_t>(entry_num, std::hash<std::vector<uint16_t>*>{}(&seeds), 0, 1 << max_level);
+            //     uint16_t seed;
+            //     uint8_t level;
+            //     while(!is_write_finished() || !m_nodes.empty()){
+            //         while(!m_nodes.empty()){
+            //             auto index = bkn->size();
+            //             seed = seeds.back();
+            //             level = levels.back();
+            //             seeds.pop_back();
+            //             levels.pop_back();
+            //             if (seeds.empty()){
+            //                 seeds = BwtFS::Util::RandNumbers<uint16_t>(entry_num, std::hash<BwtFS::Node::black_node<RCAEncryptor>*>{}(bkn), 0, 1 << 15);
+            //                 levels = BwtFS::Util::RandNumbers<uint8_t>(entry_num, std::hash<std::vector<uint16_t>*>{}(&seeds), 0, 1 << max_level);
+            //             }
+            //             auto node = get_node(index, seed, level);
+            //             auto bitmap = m_transaction_writer.write(node.data);
+            //             auto entry = generate_entry(bitmap, node.start, node.length, seed, level, false);
+            //             bkn->add_entry(entry);
+            //             if (bkn->is_fill()){
+            //                 seed = seeds.back();
+            //                 level = levels.back();
+            //                 levels.pop_back();
+            //                 seeds.pop_back();
+            //                 if (seeds.empty()){
+            //                     seeds = BwtFS::Util::RandNumbers<uint16_t>(entry_num, std::hash<BwtFS::Node::black_node<RCAEncryptor>*>{}(bkn), 0, 1 << 15);
+            //                     levels = BwtFS::Util::RandNumbers<uint8_t>(entry_num, std::hash<std::vector<uint16_t>*>{}(&seeds), 0, 1 << max_level);
+            //                 }
+            //                 auto binary_data = bkn->to_binary(seed, level);
+            //                 bitmap = m_transaction_writer.write(binary_data);
+            //                 entry = generate_entry(bitmap, bkn->get_start(), bkn->get_length(), seed, level, true);
+            //                 delete bkn;
+            //                 bkn = new black_node<RCAEncryptor>(bkn_index++);
+            //                 bkn->add_entry(entry);
+            //             }
+            //             // LOG_INFO << " nodes size: " << m_nodes.size();
+            //         }
+            //         // LOG_DEBUG << "Black node size: " << bkn->size() << 
+            //         //         " is_write_finished: " << is_write_finished() <<
+            //         //         " nodes size: " << m_nodes.size();
+            //     }
+            //     auto binary_data = bkn->to_binary(seed, level);
+            //     auto bitmap = m_transaction_writer.write(binary_data);
+            //     LOG_INFO << "Bitmap of token: " << bitmap;
+            //     this->m_transaction_writer.set_write_finished(true);
+            //     m_token = generate_token(bitmap, bkn->get_start(), bkn->get_length(), seed, level);
+            //     is_generate = true;
+            //     return m_token;
+            // }
             std::string generate_tree(){
-                int bkn_index = 0;
-                black_node<RCAEncryptor>* bkn = new black_node<RCAEncryptor>(bkn_index++);
+                std::queue<black_node<RCAEncryptor>*> bkn_queue;
+                black_node<RCAEncryptor>* bkn = new black_node<RCAEncryptor>(0);
                 constexpr int entry_num = BwtFS::BLOCK_SIZE / SIZE_OF_ENTRY;
-                auto seeds = BwtFS::Util::RandNumbers(entry_num, std::hash<BwtFS::Node::black_node<RCAEncryptor>*>{}(bkn), 0, 1 << 30);
-                auto levels = BwtFS::Util::RandNumbers(entry_num, std::hash<std::vector<int>*>{}(&seeds), 0, 1 << 8);
-                int seed, level;
+                constexpr int max_level = 3;
+                auto seeds = BwtFS::Util::RandNumbers<uint16_t>(entry_num, std::hash<std::queue<black_node<RCAEncryptor>*>*>{}(&bkn_queue), 0, 1 << 15);
+                auto levels = BwtFS::Util::RandNumbers<uint8_t>(entry_num, std::hash<std::vector<uint16_t>*>{}(&seeds), 0, 1 << max_level);
+                uint16_t seed;
+                uint8_t level;
                 while(!is_write_finished() || !m_nodes.empty()){
                     while(!m_nodes.empty()){
                         auto index = bkn->size();
@@ -237,37 +485,106 @@ namespace BwtFS::Node{
                         seeds.pop_back();
                         levels.pop_back();
                         if (seeds.empty()){
-                            seeds = BwtFS::Util::RandNumbers(entry_num, std::hash<BwtFS::Node::black_node<RCAEncryptor>*>{}(bkn), 0, 1 << 30);
-                            levels = BwtFS::Util::RandNumbers(entry_num, std::hash<std::vector<int>*>{}(&seeds), 0, 1 << 8);
+                            seeds = BwtFS::Util::RandNumbers<uint16_t>(entry_num, std::hash<std::queue<black_node<RCAEncryptor>*>*>{}(&bkn_queue), 0, 1 << 15);
+                            levels = BwtFS::Util::RandNumbers<uint8_t>(entry_num, std::hash<std::vector<uint16_t>*>{}(&seeds), 0, 1 << max_level);
                         }
                         auto node = get_node(index, seed, level);
                         auto bitmap = m_transaction_writer.write(node.data);
                         auto entry = generate_entry(bitmap, node.start, node.length, seed, level, false);
                         bkn->add_entry(entry);
                         if (bkn->is_fill()){
-                            seed = seeds.back();
-                            level = levels.back();
-                            levels.pop_back();
-                            seeds.pop_back();
-                            if (seeds.empty()){
-                                seeds = BwtFS::Util::RandNumbers(entry_num, std::hash<BwtFS::Node::black_node<RCAEncryptor>*>{}(bkn), 0, 1 << 30);
-                                levels = BwtFS::Util::RandNumbers(entry_num, std::hash<std::vector<int>*>{}(&seeds), 0, 1 << 8);
-                            }
-                            auto binary_data = bkn->to_binary(seed, level);
-                            bitmap = m_transaction_writer.write(binary_data);
-                            entry = generate_entry(bitmap, bkn->get_start(), bkn->get_length(), seed, level, true);
-                            delete bkn;
-                            bkn = new black_node<RCAEncryptor>(bkn_index++);
-                            bkn->add_entry(entry);
+                            bkn_queue.push(bkn);
+                            bkn = new black_node<RCAEncryptor>(0);
                         }
-                        // LOG_INFO << " nodes size: " << m_nodes.size();
                     }
-                    // LOG_DEBUG << "Black node size: " << bkn->size() << 
-                    //         " is_write_finished: " << is_write_finished() <<
-                    //         " nodes size: " << m_nodes.size();
+                }
+                if (bkn->size() > 0){
+                    bkn_queue.push(bkn);
+                }
+                // LOG_INFO << "White Data Write Finished";
+                bkn = new black_node<RCAEncryptor>(0);
+                std::queue<black_node<RCAEncryptor>*> bkn_queue_temp;
+                bool is_temp = false;
+                while(!bkn_queue.empty() || !bkn_queue_temp.empty()){
+                    // LOG_INFO << "Queue size: " << bkn_queue.size() << ", temp queue size: " << bkn_queue_temp.size();
+                    if (is_temp){
+                        auto bkn_tmp = bkn_queue_temp.front();
+                        bkn_queue_temp.pop();
+                        seed = seeds.back();
+                        level = levels.back();
+                        seeds.pop_back();
+                        levels.pop_back();
+                        if (seeds.empty()){
+                            seeds = BwtFS::Util::RandNumbers<uint16_t>(entry_num, std::hash<std::queue<black_node<RCAEncryptor>*>*>{}(&bkn_queue), 0, 1 << 15);
+                            levels = BwtFS::Util::RandNumbers<uint8_t>(entry_num, std::hash<std::vector<uint16_t>*>{}(&seeds), 0, 1 << max_level);
+                        }
+                        bkn_tmp->set_index(bkn->size());
+                        auto binary_data = bkn_tmp->to_binary(seed, level);
+                        auto bitmap = m_transaction_writer.write(binary_data);
+                        auto entry = generate_entry(bitmap, bkn_tmp->get_start(), bkn_tmp->get_length(), seed, level, true);
+                        delete bkn_tmp;
+                        bkn->add_entry(entry);
+                        if (bkn->is_fill()){
+                            bkn_queue_temp.push(bkn);
+                            bkn = new black_node<RCAEncryptor>(0);
+                        }
+                        if(bkn_queue_temp.empty()){
+                            is_temp = false;
+                            if (bkn_queue.size() == 0){
+                                bkn_queue.push(bkn);
+                                break;
+                            }
+                            if (bkn->size() > 0){
+                                bkn_queue_temp.push(bkn);
+                            }
+
+                        }
+                    }else{
+                        auto bkn_tmp = bkn_queue.front();
+                        bkn_queue.pop();
+                        seed = seeds.back();
+                        level = levels.back();
+                        seeds.pop_back();
+                        levels.pop_back();
+                        if (seeds.empty()){
+                            seeds = BwtFS::Util::RandNumbers<uint16_t>(entry_num, std::hash<std::queue<black_node<RCAEncryptor>*>*>{}(&bkn_queue), 0, 1 << 15);
+                            levels = BwtFS::Util::RandNumbers<uint8_t>(entry_num, std::hash<std::vector<uint16_t>*>{}(&seeds), 0, 1 << max_level);
+                        }
+                        bkn_tmp->set_index(bkn->size());
+                        auto binary_data = bkn_tmp->to_binary(seed, level);
+                        auto bitmap = m_transaction_writer.write(binary_data);
+                        auto entry = generate_entry(bitmap, bkn_tmp->get_start(), bkn_tmp->get_length(), seed, level, true);
+                        delete bkn_tmp;
+                        bkn->add_entry(entry);
+                        if (bkn->is_fill()){
+                            bkn_queue_temp.push(bkn);
+                            bkn = new black_node<RCAEncryptor>(0);
+                        }
+                        if(bkn_queue.empty()){
+                            is_temp = true;
+                            if (bkn_queue_temp.size() == 0){
+                                bkn_queue_temp.push(bkn);
+                                break;
+                            }
+                            if (bkn->size() > 0){
+                                bkn_queue_temp.push(bkn);
+                            }
+                            
+                        }
+
+                    }
+                }
+                if(bkn_queue.size() == 1){
+                    bkn = bkn_queue.front();
+                    bkn_queue.pop();
+                }else{
+                    bkn = bkn_queue_temp.front();
+                    bkn_queue_temp.pop();
                 }
                 auto binary_data = bkn->to_binary(seed, level);
                 auto bitmap = m_transaction_writer.write(binary_data);
+                LOG_INFO << "Bitmap of token: " << bitmap;
+                delete bkn;
                 this->m_transaction_writer.set_write_finished(true);
                 m_token = generate_token(bitmap, bkn->get_start(), bkn->get_length(), seed, level);
                 is_generate = true;
@@ -280,7 +597,7 @@ namespace BwtFS::Node{
 
             void join(){
                 while(!is_generate){
-                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                    std::this_thread::sleep_for(std::chrono::milliseconds(10));
                 }
             }
 
@@ -298,7 +615,9 @@ namespace BwtFS::Node{
             bool is_generate = false;
             std::mutex m_write_finish_mutex;
             TransactionWriter m_transaction_writer;
+            TreeDataReader* m_tree_data_reader = nullptr;
             std::string m_token;
+
             
 
             /*

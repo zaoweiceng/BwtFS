@@ -19,6 +19,7 @@ namespace BwtFS::Util{
 
     template std::vector<int> BwtFS::Util::RandNumbers<int>(int, unsigned, int, int);
     template std::vector<uint16_t> BwtFS::Util::RandNumbers<uint16_t>(int, unsigned, int, int);
+    template std::vector<uint8_t> BwtFS::Util::RandNumbers<uint8_t>(int, unsigned, int, int);
 
     std::vector<std::byte> RandBytes(int n, unsigned seed, int min, int max){
         // 生成随机数, n为生成的随机数个数，seed为随机数种子, min为随机数最小值，max为随机数最大值
