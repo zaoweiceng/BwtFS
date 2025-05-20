@@ -36,3 +36,4 @@
 build
 EthosNet/
 lib/googletest/*
+lib/boost/*
