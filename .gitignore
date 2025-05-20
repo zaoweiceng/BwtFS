@@ -37,3 +37,4 @@ build
 EthosNet/
 lib/googletest/*
 lib/boost/*
+lib/jsoncpp/*
