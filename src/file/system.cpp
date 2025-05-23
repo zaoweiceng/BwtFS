@@ -12,12 +12,12 @@
 using BwtFS::Util::Logger;
 
 bool BwtFS::System::createBwtFS(){
-    auto config = BwtFs::Config::getInstance();
+    auto config = BwtFS::Config::getInstance();
     return BwtFS::System::createBwtFS(config["system_file"]["path"], std::stoull(config["system_file"]["size"]), config["system_file"]["prefix"]);
 }
 
 bool BwtFS::System::createBwtFS(const std::string& path, size_t file_size){
-    auto config = BwtFs::Config::getInstance();
+    auto config = BwtFS::Config::getInstance();
     return BwtFS::System::createBwtFS(path, file_size, config["system_file"]["prefix"]) > 0;
 }
 

@@ -4,8 +4,7 @@
 int main(void){
     init();
     using BwtFS::Util::Logger;
-    auto config = BwtFs::Config::getInstance();
-    LOG_INFO <<  config["test"]["key"] ;
+    auto config = BwtFS::Config::getInstance();
 
     try{
         // BwtFS::System::File::createFile("Z://test.bwt", 256*BwtFS::MB);
@@ -15,7 +14,7 @@ int main(void){
         BwtFS::Node::bw_tree tree;
         namespace fs = std::filesystem;
         auto file = std::fstream();
-        file.open("Z://a.txt", std::ios::in | std::ios::out | std::ios::binary);
+        file.open("Z://crnn.pdf", std::ios::in | std::ios::out | std::ios::binary);
         char buffer[4096];
         while(true){
             file.read(buffer, sizeof(buffer));

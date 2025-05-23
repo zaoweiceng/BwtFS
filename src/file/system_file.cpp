@@ -14,7 +14,7 @@ BwtFS::System::File::File(const std::string &path){
     auto path_ = fs::path(path).make_preferred().string();
     // 判断文件是否存在
     if (!fs::exists(path_)){
-        auto config = BwtFs::Config::getInstance();
+        auto config = BwtFS::Config::getInstance();
         LOG_INFO << "File does not exist: " << path_;
         LOG_INFO << "Creating file: " << path_;
         BwtFS::System::File::createFile(path_, std::stoull(config["system_file"]["size"]), config["system_file"]["prefix"]);

@@ -4,7 +4,7 @@
 #include <iomanip>
 
 void BwtFS::Util::Logger::init() {
-    auto config = BwtFs::Config::getInstance();
+    auto config = BwtFS::Config::getInstance();
     __level = BwtFS::Util::LogLevelFromString(config.get("logging", "log_level", "INFO"));
     __console = config.get("logging", "log_to_console", "true") == "true";
     __file = config.get("logging", "log_to_file", "false") == "true";
@@ -19,7 +19,7 @@ BwtFS::Util::LogLevel  BwtFS::Util::LogLevelFromString(const std::string& levelS
     if (levelStr == "DEBUG") return LogLevel::DEBUG;
     if (levelStr == "INFO") return LogLevel::INFO;
     if (levelStr == "WARNING") return LogLevel::WARNING;
-    if (levelStr == "ERROR") return LogLevel::ERROR;
+    if (levelStr == "ERROR") return LogLevel::ERROR_;
     return LogLevel::INFO;
 }
 
@@ -50,7 +50,7 @@ std::string levelToString(BwtFS::Util::LogLevel level) {
         case BwtFS::Util::LogLevel::DEBUG:   return "DEBUG";
         case BwtFS::Util::LogLevel::INFO:    return "INFO";
         case BwtFS::Util::LogLevel::WARNING: return "WARNING";
-        case BwtFS::Util::LogLevel::ERROR:   return "ERROR";
+        case BwtFS::Util::LogLevel::ERROR_:   return "ERROR";
         default:                return "UNKNOWN";
     }
 }
@@ -60,7 +60,7 @@ std::string levelToStringConsole(BwtFS::Util::LogLevel level) {
         case BwtFS::Util::LogLevel::DEBUG:   return "\033[34mDEBUG\033[0m";   // Blue
         case BwtFS::Util::LogLevel::INFO:    return "\033[32mINFO\033[0m";    // Green
         case BwtFS::Util::LogLevel::WARNING: return "\033[33mWARNING\033[0m"; // Yellow
-        case BwtFS::Util::LogLevel::ERROR:   return "\033[31mERROR\033[0m";   // Red
+        case BwtFS::Util::LogLevel::ERROR_:   return "\033[31mERROR\033[0m";   // Red
         default:                             return "UNKNOWN";  // Reset
     }
 }

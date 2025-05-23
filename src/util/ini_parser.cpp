@@ -13,12 +13,14 @@ void trim(std::string& str) {
     }).base(), str.end());
 }
 
-void BwtFs::Config::init() {
+void BwtFS::Config::init() {
+    LOG_INFO << "Config path: " << config_path;
     config_path = fs::path(BwtFS::DefaultConfig::CONFIG_PATH).make_preferred().string();
+    
     if (config_path.empty()) {
         LOG_WARNING << "Config path is empty.";
         LOG_WARNING << "Using default config and generate config file.";
-        config_path = "./config.ini";
+        config_path = BwtFS::DefaultConfig::CONFIG_PATH;
     }
     if (config_path.find(".ini") == std::string::npos) {
         LOG_WARNING << "Config file is not .ini file.";
@@ -28,12 +30,13 @@ void BwtFs::Config::init() {
     load();
 }
 
-bool BwtFs::Config::load() {
+bool BwtFS::Config::load() {
     // 如果配置文件不存在，则创建默认配置
-    if (!fs::exists(config_path)) {
+    LOG_INFO << "Loading config file: " << config_path;
+    if (!fs::exists(config_path) || config_path.empty()) {
         LOG_WARNING << "Config file does not exist.";
-        LOG_WARNING << "Creating default config file.";
-        return createDefaultConfig();
+        LOG_WARNING << "Using default config file.";
+        return false;
     }
 
     // 读取配置文件
@@ -79,7 +82,7 @@ bool BwtFs::Config::load() {
     return true;
 }
 
-bool BwtFs::Config::save() const {
+bool BwtFS::Config::save() const {
     std::ofstream file(config_path.c_str());
     if (!file.is_open()) {
         LOG_ERROR << "Failed to open config file for writing: " << config_path;
@@ -99,7 +102,7 @@ bool BwtFs::Config::save() const {
     return true;
 }
 
-std::string BwtFs::Config::get(const std::string& section, const std::string& key, const std::string& default_value) const {
+std::string BwtFS::Config::get(const std::string& section, const std::string& key, const std::string& default_value) const {
     auto sectionIt = config_data.find(section);
     if (sectionIt != config_data.end()) {
         auto keyIt = sectionIt->second.find(key);
@@ -110,13 +113,13 @@ std::string BwtFs::Config::get(const std::string& section, const std::string& ke
     return default_value;
 }
 
-void BwtFs::Config::set(const std::string& section, const std::string& key, const std::string& value) {
+void BwtFS::Config::set(const std::string& section, const std::string& key, const std::string& value) {
     config_data[section][key] = value;
     save();
     LOG_INFO << "Config updated: [" << section << "] " << key << "=" << value;
 }
 
-bool BwtFs::Config::createDefaultConfig() {
+bool BwtFS::Config::createDefaultConfig() {
     // 确保目录存在
     auto parentPath = fs::path(config_path).parent_path();
     if (!parentPath.empty()) {

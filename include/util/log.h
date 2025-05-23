@@ -22,7 +22,7 @@ namespace BwtFS::Util{
         DEBUG,
         INFO,
         WARNING,
-        ERROR
+        ERROR_
     };
     LogLevel LogLevelFromString(const std::string& levelStr);
     /*
@@ -68,7 +68,7 @@ namespace BwtFS::Util{
                 if (levelStr == "DEBUG") return LogLevel::DEBUG;
                 if (levelStr == "INFO") return LogLevel::INFO;
                 if (levelStr == "WARNING") return LogLevel::WARNING;
-                if (levelStr == "ERROR") return LogLevel::ERROR;
+                if (levelStr == "ERROR") return LogLevel::ERROR_;
                 return LogLevel::INFO;
             }(BwtFS::DefaultConfig::LOG_LEVEL);
             // 是否输出到控制台
@@ -139,9 +139,9 @@ namespace BwtFS::Util{
     // Warning日志
     #define LOG_WARNING LOG(BwtFS::Util::LogLevel::WARNING)
     // Error日志
-    #define LOG_ERROR LOG(BwtFS::Util::LogLevel::ERROR)
+    #define LOG_ERROR LOG(BwtFS::Util::LogLevel::ERROR_)
     // Fatal日志
-    #define LOG_FATAL LOG(BwtFS::Util::LogLevel::ERROR) << "FATAL ERROR: " << __FILE__ << ":" << __LINE__ << " - "
+    #define LOG_FATAL LOG(BwtFS::Util::LogLevel::ERROR_) << "FATAL ERROR: " << __FILE__ << ":" << __LINE__ << " - "
     // 
     #define LOG_CIALLO std::cout << "\033[32mCiallo～(∠·ω< )⌒★\033[0m" << std::endl;
 }

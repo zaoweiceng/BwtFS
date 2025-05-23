@@ -1,12 +1,11 @@
 #include "gtest/gtest.h"
-#include "file_system.hpp"
 #include "util/random.h"
 #include "BwtFS.h"
 
 void test_bitmap_wear_balance() {
     init();
     using BwtFS::Util::Logger;
-    auto config = BwtFs::Config::getInstance();
+    auto config = BwtFS::Config::getInstance();
     try{
         // BwtFS::System::File::createFile("O://test2.png", 256*BwtFS::MB, "O://pic.png");
         // BwtFS::System::initBwtFS("O://test2.png");
@@ -45,7 +44,7 @@ void test_bitmap_wear_balance() {
 void test_read_and_write() {
     init();
     using BwtFS::Util::Logger;
-    auto config = BwtFs::Config::getInstance();
+    auto config = BwtFS::Config::getInstance();
     try{
         // BwtFS::System::File::createFile("O://test.png", 256*BwtFS::MB, "O://pic.png");
         // BwtFS::System::initBwtFS("O://test.png");

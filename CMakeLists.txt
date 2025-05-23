@@ -11,6 +11,25 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     add_compile_options("-fmacro-prefix-map=${CMAKE_SOURCE_DIR}=")
 endif()
 
+if(WIN32)
+    # Windows下使用WS2_32库
+    find_library(WS2_32_LIB 
+        NAMES ws2_32 ws2_32.lib   # Windows 库名
+        PATHS "C:/MinGW/x86_64-w64-mingw32/lib"  # MinGW 库路径
+        REQUIRED
+    )
+endif()
+set(BOOST_INCLUDE_LIBRARIES "system,filesystem,beast,asio,json,config,
+                            core,static_assert,preprocessor,throw_exception,
+                            assert,align,error_code,winapi,chrono,predef,
+                            utility,optional,type_traits,date_time,smart_ptr,
+                            numeric_conversion,mpl,mp11,bind,intrusive,
+                            move,logic,static_string,container_hash,describe,
+                            variant,graph,graph_parallel,io,regex,serialization,
+                            locale,algorithm,endian")
+add_subdirectory(lib/googletest)
+add_subdirectory(lib/boost)
 add_subdirectory(src)
-# add_subdirectory(test)
-# add_subdirectory(lib/googletest)
+add_subdirectory(test)
+add_subdirectory(net)
+

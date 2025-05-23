@@ -12,15 +12,16 @@
 #include <utility>
 #include "config.h"
 #include <memory>
-namespace BwtFs{
+namespace BwtFS{
     class Config{
         public:
             static Config& getInstance(){
                 static Config instance;
                 static bool initialized = false;
                 if (!initialized) {
-                    instance.init(); // 仅在第一次调用时初始化
                     initialized = true;
+                    std::cout << "Config instance initialized." << std::endl;
+                    instance.init(); // 仅在第一次调用时初始化
                 }
                 return instance;
             }
@@ -46,23 +47,29 @@ namespace BwtFs{
 
         private:
             std::string config_path;
-            std::unordered_map<std::string, std::unordered_map<std::string, std::string>> config_data = {
+            std::unordered_map<std::string, std::unordered_map<std::string, std::string>> 
+                config_data = {
                 {"logging", {
                     {"log_level", BwtFS::DefaultConfig::LOG_LEVEL}, 
                     {"log_path", BwtFS::DefaultConfig::LOG_PATH}, 
                     {"log_to_file", BwtFS::DefaultConfig::LOG_TO_FILE ? "true" : "false"}, 
                     {"log_to_console", BwtFS::DefaultConfig::LOG_TO_CONSOLE ? "true" : "false"}
                 }},
-                {"system_file", {
+                {"system", {
                     {"path", BwtFS::DefaultConfig::SYSTEM_FILE_PATH}, 
                     {"size", std::to_string(BwtFS::DefaultConfig::SYSTEM_FILE_SIZE)}, 
                     {"prefix", BwtFS::DefaultConfig::SYSTEM_FILE_PREFIX}
+                }},
+                {"server", { 
+                    {"port", BwtFS::DefaultConfig::SERVER_PORT},
+                    {"address", BwtFS::DefaultConfig::SERVER_ADDRESS}, 
+                    {"max_body_size", std::to_string(BwtFS::DefaultConfig::SERVER_MAX_BODY_SIZE)}
                 }}
             };
 
             // 创建默认配置文件
             bool createDefaultConfig();
     };
-
 }
+
 #endif
