@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.10)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_BUILD_TYPE "Release") # 设置编译类型为Release
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 project(BWTFileSystemProject VERSION 1.0.0 LANGUAGES CXX)
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/include")
 AUX_SOURCE_DIRECTORY("${CMAKE_CURRENT_SOURCE_DIR}/src" DIR_SRCS)
@@ -30,6 +32,7 @@ set(BOOST_INCLUDE_LIBRARIES "system,filesystem,beast,asio,json,config,
 add_subdirectory(lib/googletest)
 add_subdirectory(lib/boost)
 add_subdirectory(src)
+add_subdirectory(cmd)
 add_subdirectory(test)
 add_subdirectory(net)
 

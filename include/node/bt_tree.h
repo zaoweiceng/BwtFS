@@ -198,26 +198,37 @@ namespace BwtFS::Node{
                 Binary binary_data;
                 int visit_index = index / (BwtFS::BLOCK_SIZE - sizeof(uint8_t));
                 if (visit_index >= m_visit_nodes->size()){
-                    LOG_ERROR << "Get Tree Data: Out of range";
-                    throw std::runtime_error("Get Tree Data: Out of range");
+                    LOG_WARNING << "Get Tree Data: Out of range: " << visit_index 
+                              << ", size: " << m_visit_nodes->size();
+                    // throw std::runtime_error("Get Tree Data: Out of range");
+                    return binary_data; // 返回空的Binary
                 }
                 int node_data_start = index - visit_index * (BwtFS::BLOCK_SIZE - sizeof(uint8_t));
                 size_t size_ = size;
                 while(binary_data.size() < size){
+                    // LOG_DEBUG << "Total size: " << binary_data.size() 
+                    //           << ", size: " << size 
+                    //           << ", visit_index: " << visit_index;
                     auto node = m_visit_nodes->at(visit_index);
                     Binary data = m_fs->read(node.bitmap);
+                    
                     white_node<RCAEncryptor> wnode(
                         data, node.level, node.seed, node.start, node.length);
                     int read_size;
                     if (wnode.data().size() - node_data_start < size_){
-                        read_size = size_;
-                        binary_data.append(wnode.data().read(node_data_start, read_size)); 
-                        node_data_start += read_size;
-                    }else{
-                        read_size = wnode.data().size();
+                        read_size = wnode.data().size() - node_data_start;
                         binary_data.append(wnode.data().read(node_data_start, read_size)); 
                         node_data_start = 0;
+                    }else{
+                        read_size = size_;
+                        binary_data.append(wnode.data().read(node_data_start, read_size)); 
+                        node_data_start = 0;
+                        break;
                     }
+                    // LOG_INFO << "Read size: " << read_size 
+                    //           << ", node_data_start: " << node_data_start 
+                    //           << ", size_: " << size_
+                    //           << ", binary_data size: " << binary_data.size();
                     size_ -= read_size;
                     if (size_ <= 0){
                         break;
@@ -229,6 +240,11 @@ namespace BwtFS::Node{
                 }
                 return binary_data;
             }
+
+        int get_count(){
+            return m_visit_nodes->size();
+        }
+
         private:
             std::shared_ptr<BwtFS::System::FileSystem> m_fs;
             std::queue<entry> m_entry_queue;
@@ -394,6 +410,10 @@ namespace BwtFS::Node{
                 return m_tree_data_reader->read(index, size);
             }
 
+            int get_visit_node_count(){
+                return m_tree_data_reader->get_count();
+            }
+
             int get_node_count(){
                 return m_nodes.size();
             }
@@ -472,7 +492,7 @@ namespace BwtFS::Node{
                 std::queue<black_node<RCAEncryptor>*> bkn_queue;
                 black_node<RCAEncryptor>* bkn = new black_node<RCAEncryptor>(0);
                 constexpr int entry_num = BwtFS::BLOCK_SIZE / SIZE_OF_ENTRY;
-                constexpr int max_level = 3;
+                constexpr int max_level = 2;
                 auto seeds = BwtFS::Util::RandNumbers<uint16_t>(entry_num, std::hash<std::queue<black_node<RCAEncryptor>*>*>{}(&bkn_queue), 0, 1 << 15);
                 auto levels = BwtFS::Util::RandNumbers<uint8_t>(entry_num, std::hash<std::vector<uint16_t>*>{}(&seeds), 0, 1 << max_level);
                 uint16_t seed;
@@ -583,7 +603,7 @@ namespace BwtFS::Node{
                 }
                 auto binary_data = bkn->to_binary(seed, level);
                 auto bitmap = m_transaction_writer.write(binary_data);
-                LOG_INFO << "Bitmap of token: " << bitmap;
+                // LOG_INFO << "Bitmap of token: " << bitmap;
                 delete bkn;
                 this->m_transaction_writer.set_write_finished(true);
                 m_token = generate_token(bitmap, bkn->get_start(), bkn->get_length(), seed, level);

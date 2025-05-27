@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <stdexcept>
 #include <ctime>
+#include <algorithm>
 #include "node/binary.h"
 #include "cell.h"
 
@@ -17,7 +18,7 @@ using BwtFS::Node::StringType;
 const std::string encodingChars = 
     "abcdefghijklmnopqrstuvwxyz"
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    "~!@#$%^&*-+=";
+    "~!@#$%^&*-+_";
 
 class Token {
     public:
@@ -64,12 +65,15 @@ class Token {
                     cache_size = 2;
                 }                
             }
-            // std::cout << "token: " << token << std::endl;
-            token = Binary().append(sizeof(rca_), reinterpret_cast<std::byte*>(&rca_)).to_base64_string() + token;
+            std::string rca_base64 = Binary().append(sizeof(rca_), reinterpret_cast<std::byte*>(&rca_)).to_base64_string();
+            std::replace(rca_base64.begin(), rca_base64.end(), '=', '_');
+            token = rca_base64 + token;
+            // token = Binary().append(sizeof(rca_), reinterpret_cast<std::byte*>(&rca_)).to_base64_string().replace('=', '_') + token;
             // std::cout << Binary().append(sizeof(rca_), reinterpret_cast<std::byte*>(&rca_)).to_base64_string().length() << std::endl;
             return token;
         }   
-        Token(const std::string& token){
+        Token(std::string token){
+            std::replace(token.begin(), token.end(), '_', '=');
             decode_token(token);
         }
         void decode_token(const std::string& token){

@@ -40,8 +40,9 @@ namespace BwtFS::Node{
                         e.setSeed(seeds[i]);
                         e.decrypt(m_value.data(), m_value.size());
                     }
+                }else{
+                    e.decrypt(m_value.data(), m_value.size());
                 }
-                e.decrypt(m_value.data(), m_value.size());
              }
             tree_base_node() = default;
         protected:

@@ -141,8 +141,10 @@ void BwtFS::System::Bitmap::init(unsigned last_index) {
     }
     this->set_(0);
     this->set_(last_index);
+    this->set_(last_index-1);
     this->bitmap_wear.set(0, std::byte(255));
     this->bitmap_wear.set(last_index, std::byte(255));
+    this->bitmap_wear.set(last_index-1, std::byte(255));
     this->save();
 }
 
