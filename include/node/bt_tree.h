@@ -142,17 +142,20 @@ namespace BwtFS::Node{
 
     class TreeDataReader{
         public:
-            TreeDataReader(const std::string& token){
+            TreeDataReader(const std::string& token, bool is_delete = false){
                 Token t(token); 
                 m_fs = BwtFS::System::getBwtFS();
                 Binary starter_node = m_fs->read(t.get_bitmap());
+                if(is_delete){
+                    delete_bitmap.push_back(t.get_bitmap());
+                }
                 // LOG_INFO << "Bitmap: " << t.get_bitmap();
                 black_node<RCAEncryptor> node(
                     starter_node, t.get_level(), t.get_seed(),
                      t.get_start(), t.get_length());
                 m_entry_queue.emplace(t.get_bitmap(), NodeType::BLACK_NODE, t.get_start(), 
                                         t.get_length(), t.get_seed(), t.get_level());
-                init();
+                init(is_delete);
             }
             TreeDataReader(const TreeDataReader&) = delete;
             TreeDataReader& operator=(const TreeDataReader&) = delete;
@@ -245,20 +248,34 @@ namespace BwtFS::Node{
             return m_visit_nodes->size();
         }
 
+        void delete_file(){
+            // 删除访问节点
+            for (auto& bitmap : delete_bitmap){
+                m_fs->bitmap->clear(bitmap);
+            }
+            for (auto it = m_visit_nodes->begin(); it != m_visit_nodes->end(); ++it){
+                m_fs->bitmap->clear(it->bitmap);
+            }
+        }
+
         private:
             std::shared_ptr<BwtFS::System::FileSystem> m_fs;
             std::queue<entry> m_entry_queue;
             secure_ptr<std::vector<VisitNode>> m_visit_nodes = 
                     make_secure<std::vector<VisitNode>>();
+            std::vector<size_t> delete_bitmap;
             /*
             * 初始化访问节点
             */
-            void init(){
+            void init(bool is_delete = false){
                 // LOG_INFO << "Init visit nodes";
                 while(!m_entry_queue.empty()){
                     auto entry = m_entry_queue.front();
                     m_entry_queue.pop();
                     Binary bd = m_fs->read(entry.get_bitmap());
+                    if(is_delete){
+                        delete_bitmap.push_back(entry.get_bitmap());
+                    }
                     black_node<RCAEncryptor> node(
                         bd, entry.get_level(), entry.get_seed(),
                          entry.get_start(), entry.get_length());
@@ -356,8 +373,8 @@ namespace BwtFS::Node{
                 });
             };
 
-            bw_tree(const std::string & token){
-                m_tree_data_reader = new TreeDataReader(token);
+            bw_tree(const std::string & token, bool is_delete = false){
+                m_tree_data_reader = new TreeDataReader(token, is_delete);
             }
 
             bw_tree(const bw_tree&) = delete;
@@ -416,6 +433,10 @@ namespace BwtFS::Node{
 
             int get_node_count(){
                 return m_nodes.size();
+            }
+
+            void delete_file(){
+                m_tree_data_reader->delete_file();
             }
 
 
