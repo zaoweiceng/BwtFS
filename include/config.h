@@ -33,13 +33,13 @@ namespace BwtFS{
 
         // system file
         const std::string SYSTEM_FILE_PATH = "./bwtfs.bwt"; // 系统文件路径
-        const size_t SYSTEM_FILE_SIZE = 1 * GB;             // 系统文件大小
+        const size_t SYSTEM_FILE_SIZE = 512 * MB;             // 系统文件大小
         const std::string SYSTEM_FILE_PREFIX = "";          // 系统文件前缀
         const size_t SYSTEM_FILE_MIN_SIZE = 64 * MB;        // 系统文件最小大小
 
         // server
         const std::string SERVER_ADDRESS = "127.0.0.1"; // 服务器地址
-        const std::string SERVER_PORT = "8080";         // 服务器端口
+        const std::string SERVER_PORT = "9999";         // 服务器端口
         const size_t SERVER_MAX_BODY_SIZE = 100 * MB;  // 服务器最大请求体大小
 
     };
