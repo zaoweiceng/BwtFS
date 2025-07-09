@@ -172,7 +172,7 @@ namespace BwtFS::Node{
                 }else{
                     entry_data = entry_list::from_binary(this->m_value, this->size_of_entry);
                 }
-                // LOG_DEBUG << "entry_data size: " << entry_data.size();
+                LOG_DEBUG << "entry_data size: " << entry_data.size();
                 for (int i = 0; i < entry_data.size(); i++) {
                     this->m_entry_list->add_entry(entry_data.get_entry(i));
                 }

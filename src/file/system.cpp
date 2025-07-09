@@ -263,7 +263,7 @@ void BwtFS::System::FileSystem::setSeedOfCell(unsigned seed_of_cell){
 }
 
 BwtFS::Node::Binary BwtFS::System::FileSystem::read(const unsigned long long index){
-    if (index > this->BLOCK_COUNT){
+    if (index > this->BLOCK_COUNT || index <= 0){
         LOG_ERROR <<  "Index out of range: " << index;
         throw std::out_of_range(std::string("Index out of range") 
         + __FILE__ + ":" + std::to_string(__LINE__));
@@ -273,7 +273,7 @@ BwtFS::Node::Binary BwtFS::System::FileSystem::read(const unsigned long long ind
 }
 
 void BwtFS::System::FileSystem::write(const unsigned long long index, const BwtFS::Node::Binary& data){
-    if (index > this->BLOCK_COUNT){
+    if (index > this->BLOCK_COUNT || index < 0){
         LOG_ERROR <<  "Index out of range: " << index;
         throw std::out_of_range(std::string("Index out of range") 
         + __FILE__ + ":" + std::to_string(__LINE__));

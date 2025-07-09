@@ -149,10 +149,11 @@ namespace BwtFS::Node{
                 if(is_delete){
                     delete_bitmap.push_back(t.get_bitmap());
                 }
-                // LOG_INFO << "Bitmap: " << t.get_bitmap();
-                black_node<RCAEncryptor> node(
-                    starter_node, t.get_level(), t.get_seed(),
-                     t.get_start(), t.get_length());
+                LOG_DEBUG << "Bitmap: " << t.get_bitmap();
+                // black_node<RCAEncryptor> node(
+                //     starter_node, t.get_level(), t.get_seed(),
+                //      t.get_start(), t.get_length());
+
                 m_entry_queue.emplace(t.get_bitmap(), NodeType::BLACK_NODE, t.get_start(), 
                                         t.get_length(), t.get_seed(), t.get_level());
                 init(is_delete);
@@ -268,7 +269,7 @@ namespace BwtFS::Node{
             * 初始化访问节点
             */
             void init(bool is_delete = false){
-                // LOG_INFO << "Init visit nodes";
+                LOG_DEBUG << "Init visit nodes";
                 while(!m_entry_queue.empty()){
                     auto entry = m_entry_queue.front();
                     m_entry_queue.pop();
@@ -284,43 +285,14 @@ namespace BwtFS::Node{
                         auto e = node.get_entry(i);
                         entries.push_back(e);
                     }
-                    // LOG_INFO << "Entry size: " << entries.size();
-                    // LOG_INFO << "index: " << int(node.get_index());
-                    // std::sort(entries.begin(), entries.end(), 
-                    //     [this](const BwtFS::Node::entry& a, const BwtFS::Node::entry& b){
-                    //         auto binary_a = this->m_fs->read(a.get_bitmap());
-                    //         auto binary_b = this->m_fs->read(b.get_bitmap());
-                    //         int index_a;
-                    //         int index_b;
-                    //         if(a.get_type() == NodeType::BLACK_NODE){
-                    //             auto temp_node = black_node<RCAEncryptor>
-                    //                         (binary_a, a.get_level(), a.get_seed(),
-                    //                          a.get_start(), a.get_length());
-                    //             index_a = temp_node.get_index();
-                    //         }else{
-                    //             auto temp_node = white_node<RCAEncryptor>
-                    //                         (binary_a, a.get_level(), a.get_seed(),
-                    //                          a.get_start(), a.get_length());
-                    //             index_a = temp_node.get_index();
-                    //         }
-                    //         if(b.get_type() == NodeType::BLACK_NODE){
-                    //             auto temp_node = black_node<RCAEncryptor>
-                    //                         (binary_b, b.get_level(), b.get_seed(),
-                    //                          b.get_start(), b.get_length());
-                    //             index_b = temp_node.get_index();
-                    //         }else{
-                    //             auto temp_node = white_node<RCAEncryptor>
-                    //                         (binary_b, b.get_level(), b.get_seed(),
-                    //                          b.get_start(), b.get_length());
-                    //             index_b = temp_node.get_index();
-                    //         }
-                    //         return index_a < index_b;
-                    // });
-                    // LOG_INFO << "Sorted entry size: " << entries.size();
                     for (int i = 0; i < entries.size(); i++){
                         auto e = entries[i];
                         VisitNode node;
                         node.bitmap = e.get_bitmap();
+                        if (node.bitmap < 0){
+                            LOG_ERROR << "Bitmap is 0, entry: " << e.get_bitmap();
+                            throw std::runtime_error("Bitmap is 0");
+                        }
                         node.start = e.get_start();
                         node.length = e.get_length();
                         node.seed = e.get_seed();
@@ -334,7 +306,6 @@ namespace BwtFS::Node{
                         }
                     }
                 }
-                // std::reverse(m_visit_nodes->begin(), m_visit_nodes->end());
             }
     };
     /*
@@ -374,7 +345,12 @@ namespace BwtFS::Node{
             };
 
             bw_tree(const std::string & token, bool is_delete = false){
-                m_tree_data_reader = new TreeDataReader(token, is_delete);
+                try {
+                    m_tree_data_reader = new TreeDataReader(token, is_delete);
+                } catch (const std::exception& e) {
+                    LOG_ERROR << "Failed to initialize bw_tree, error: " << e.what();
+                    throw std::runtime_error("Failed to initialize bw_tree");
+                }
             }
 
             bw_tree(const bw_tree&) = delete;

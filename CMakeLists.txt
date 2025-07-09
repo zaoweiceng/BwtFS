@@ -21,6 +21,7 @@ if(WIN32)
         REQUIRED
     )
 endif()
+add_subdirectory(lib/boost)
 set(BOOST_INCLUDE_LIBRARIES "system,filesystem,beast,asio,json,config,
                             core,static_assert,preprocessor,throw_exception,
                             assert,align,error_code,winapi,chrono,predef,
@@ -30,7 +31,6 @@ set(BOOST_INCLUDE_LIBRARIES "system,filesystem,beast,asio,json,config,
                             variant,graph,graph_parallel,io,regex,serialization,
                             locale,algorithm,endian")
 add_subdirectory(lib/googletest)
-add_subdirectory(lib/boost)
 add_subdirectory(src)
 add_subdirectory(cmd)
 add_subdirectory(test)
