@@ -9,10 +9,10 @@ using BwtFS::Util::Logger;
 
 
 TEST(TokenTest, baseTest){
-    size_t bitmap = 123456789;
-    uint16_t start = 12345;
-    uint16_t length = 12343;
-    uint16_t seed = 12342;
+    size_t bitmap = 534013;
+    uint16_t start = 1245;
+    uint16_t length = 32;
+    uint16_t seed = 10;
     uint8_t level = 1;
     Token token(bitmap, start, length, seed, level);
     auto token_str = token.generate_token();

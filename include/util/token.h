@@ -18,7 +18,7 @@ using BwtFS::Node::StringType;
 const std::string encodingChars = 
     "abcdefghijklmnopqrstuvwxyz"
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    "0123456789-+";
+    "0123456789*-";
 
 class Token {
     public:

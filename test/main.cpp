@@ -149,32 +149,33 @@ void test_read_speed_in_bwt(BwtFS::Node::bw_tree& tree) {
 // }
 
 int main(int argc, char **argv) {
-    // ::testing::InitGoogleTest(&argc, argv);
-    // int res = RUN_ALL_TESTS();
+    ::testing::InitGoogleTest(&argc, argv);
+    int res = RUN_ALL_TESTS();
+    return res;
     using BwtFS::Util::Logger;
     
-    init();
-    std::string file_path = "Z://test.bwt";
-    if(!std::filesystem::exists(file_path)) {
-        try {
-            BwtFS::System::File::createFile(file_path, 1*BwtFS::GB);
-            BwtFS::System::initBwtFS(file_path);
-            LOG_INFO << "Test file created at: " << file_path;
-        } catch (const std::exception& e) {
-            LOG_ERROR << "Failed to create test file: " << e.what();
-            return 1;
-        }
-    } else {
-        LOG_INFO << "Test file already exists at: " << file_path;
-    }
-    auto system = BwtFS::System::openBwtFS(file_path);
-    if (system == nullptr) {
-        LOG_ERROR << "Failed to open BwtFS system.";
-        return 1;
-    }
-    LOG_INFO << "BwtFS system opened successfully.";
-    // write_test_file("Z://test_file.txt");
-    std::string token = "G2g0aAAAAAA=NRyaaaaaaadlbrahvZud";
+    // init();
+    // std::string file_path = "Z://test.bwt";
+    // if(!std::filesystem::exists(file_path)) {
+    //     try {
+    //         BwtFS::System::File::createFile(file_path, 1*BwtFS::GB);
+    //         BwtFS::System::initBwtFS(file_path);
+    //         LOG_INFO << "Test file created at: " << file_path;
+    //     } catch (const std::exception& e) {
+    //         LOG_ERROR << "Failed to create test file: " << e.what();
+    //         return 1;
+    //     }
+    // } else {
+    //     LOG_INFO << "Test file already exists at: " << file_path;
+    // }
+    // auto system = BwtFS::System::openBwtFS(file_path);
+    // if (system == nullptr) {
+    //     LOG_ERROR << "Failed to open BwtFS system.";
+    //     return 1;
+    // }
+    // LOG_INFO << "BwtFS system opened successfully.";
+    // // write_test_file("Z://test_file.txt");
+    // std::string token = "G2g0aAAAAAA=NRyaaaaaaadlbrahvZud";
     // try{
     //     token = write_test_file_in_bwt();
     //     LOG_INFO << "Test file written in BwtFS with token: " << token;
@@ -183,27 +184,27 @@ int main(int argc, char **argv) {
     //     return 1;
     // }
     // 测试读取速度
-    std::fstream file("Z://test_file.txt", std::ios::in | std::ios::binary);
-    if (!file.is_open()) {
-        LOG_ERROR << "Failed to open test file for reading.";
-        return 1;
-    }
-    LOG_INFO << "Testing read speed from file...";
-    auto start = std::chrono::high_resolution_clock::now();
-    test_read_speed(file);
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    LOG_INFO << "Read speed test completed in " << duration.count() << " ms.";
-    file.close();
-    LOG_INFO << "Testing read speed from BwtFS...";
-    BwtFS::Node::bw_tree tree(token);
-    LOG_INFO << "File opened in BwtFS with token: " << token;
-    start = std::chrono::high_resolution_clock::now();
-    test_read_speed_in_bwt(tree);
-    end = std::chrono::high_resolution_clock::now();
-    duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    LOG_INFO << "Read speed from BwtFS completed in " << duration.count() << " ms.";
-    LOG_INFO << "Read speed tests completed.";
+    // std::fstream file("Z://test_file.txt", std::ios::in | std::ios::binary);
+    // if (!file.is_open()) {
+    //     LOG_ERROR << "Failed to open test file for reading.";
+    //     return 1;
+    // }
+    // LOG_INFO << "Testing read speed from file...";
+    // auto start = std::chrono::high_resolution_clock::now();
+    // test_read_speed(file);
+    // auto end = std::chrono::high_resolution_clock::now();
+    // auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    // LOG_INFO << "Read speed test completed in " << duration.count() << " ms.";
+    // file.close();
+    // LOG_INFO << "Testing read speed from BwtFS...";
+    // BwtFS::Node::bw_tree tree(token);
+    // LOG_INFO << "File opened in BwtFS with token: " << token;
+    // start = std::chrono::high_resolution_clock::now();
+    // test_read_speed_in_bwt(tree);
+    // end = std::chrono::high_resolution_clock::now();
+    // duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    // LOG_INFO << "Read speed from BwtFS completed in " << duration.count() << " ms.";
+    // LOG_INFO << "Read speed tests completed.";
     // test_bitmap_wear_balance(); // PASS
     // test_read_and_write();      // PASS
     return 0;

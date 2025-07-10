@@ -723,26 +723,10 @@ class http_connection : public std::enable_shared_from_this<http_connection> {
 
         void start() {
             read_request(); // 读请求
-            // check_deadline(); // 检查超时
         }
 
         ~http_connection() {
-            LOG_DEBUG << "Connection closed: " << 
-                _socket.remote_endpoint().address().to_string() << 
-                ":" << _socket.remote_endpoint().port();
         }
 };
-
-// void http_server(tcp::acceptor& acceptor, tcp::socket& socket) {
-//     acceptor.async_accept(socket, [&](boost::system::error_code ec) {
-//         if (!ec) {
-//             // 创建一个http_connection新实例，并调用start函数
-//             std::make_shared<http_connection>(std::move(socket))->start();
-//         }else {
-//             LOG_ERROR << "Accept error: " << ec.to_string();
-//         }
-//         http_server(acceptor, socket);
-//     });
-// }
 
 #endif // __SERVER_HPP__

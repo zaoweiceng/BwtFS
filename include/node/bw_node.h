@@ -165,8 +165,12 @@ namespace BwtFS::Node{
                 // LOG_DEBUG << "level: " << int(level) << ", seed: " << seed;
                 // LOG_DEBUG << "size_of_entry: " << int(this->size_of_entry);
                 this->m_value = Binary(value.read(start, length));
-
+                // this->size_of_entry = length/entry::size();
                 BwtFS::Node::entry_list entry_data;
+                LOG_DEBUG << "start: " << start << ", length: " << length 
+                          << ", value size: " << this->m_value.size() 
+                          << ", entry size: " << length/entry::size()
+                          << ", size_of_entry: " << int(this->size_of_entry);
                 if (this->size_of_entry == 0){
                     entry_data = entry_list::from_binary(this->m_value, length/entry::size());
                 }else{
@@ -220,8 +224,7 @@ namespace BwtFS::Node{
                 Binary binary_data;
                 binary_data.append(sizeof(uint8_t), reinterpret_cast<std::byte*>(&this->index));
                 binary_data.append(sizeof(uint8_t), reinterpret_cast<std::byte*>(&this->size_of_entry));
-                // LOG_INFO << "size_of_entry: " << int(this->size_of_entry);
-                // m_entry_list->shuffle();
+                LOG_INFO << "size_of_entry: " << int(this->size_of_entry);
                 Binary entry_data = m_entry_list->to_binary();
                 unsigned gap = BwtFS::BLOCK_SIZE - sizeof(uint8_t) - sizeof(uint8_t) - entry_data.size();
                 int rand = BwtFS::Util::RandNumber(std::time(nullptr), 0, gap);
@@ -234,7 +237,7 @@ namespace BwtFS::Node{
 
             Binary to_binary(uint16_t seed, uint8_t level) {
                 Binary binary_data = this->to_binary();
-                // LOG_DEBUG << "seed: " << seed << ", level: " << int(level);
+                LOG_DEBUG << "seed: " << seed << ", level: " << int(level);
                 auto seeds = BwtFS::Util::RandNumbers<uint16_t>(level, seed, 0, 1<<15);
                 if constexpr (E::value == "RCAEncryptor") {
                     for (int i = 0; i < level; i++) {

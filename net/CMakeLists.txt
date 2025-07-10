@@ -65,4 +65,10 @@ boost_filesystem boost_thread boost_date_time
  boost_regex boost_chrono boost_log boost_log_setup)
 if(WIN32)
     target_link_libraries(${BINARY} PRIVATE Ws2_32 Mswsock)
+else()
+      # Linux 需要 pthread 和 rt 库
+  target_link_libraries(${BINARY} PRIVATE pthread rt)
+  
+  # 添加 Boost 库路径到链接器搜索路径
+#   link_directories(${Boost_LIBRARY_DIRS})
 endif()

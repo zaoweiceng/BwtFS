@@ -34,13 +34,13 @@ BwtFS::Node::entry BwtFS::Node::entry::from_binary(Binary& binary_data) {
 BwtFS::Node::entry_list BwtFS::Node::entry_list::from_binary(Binary& binary_data, int num_entries) {
     entry_list list;
     size_t offset = 0;
-    // LOG_DEBUG << "entry_list::from_binary, num_entries: " << num_entries;
+    LOG_DEBUG << "entry_list::from_binary, num_entries: " << num_entries;
     for (size_t i = 0; i < num_entries; i++) {
         auto entry_data = binary_data.read(offset, entry::size());
         Binary entry_binary(entry_data);
         // LOG_DEBUG << "entry_binary size: " << entry_binary.size();
         if (entry_binary.size() == 0) {
-            LOG_WARNING << "Entry binary size is 0: " << entry::size();
+            LOG_WARNING << "Entry binary size is 0, " << entry::size() << " bytes expected, current size: " << entry_binary.size();
             throw std::runtime_error("Entry binary size is 0");
         }
         list.add_entry(std::move(entry::from_binary(entry_binary)));
