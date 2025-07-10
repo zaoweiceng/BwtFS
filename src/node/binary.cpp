@@ -425,7 +425,7 @@ std::string base64_encode(const std::vector<std::byte>& input) {
     static constexpr char base64_chars[] = 
         "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
         "abcdefghijklmnopqrstuvwxyz"
-        "0123456789+/";
+        "0123456789*-";
 
     const unsigned char* data = reinterpret_cast<const unsigned char*>(input.data());
     size_t input_len = input.size();
