@@ -34,6 +34,15 @@
 .vscode
 .vs
 build
+*.DS_Store
+*.swp
+*.swo
+*.bak
+*.tmp
+*.log
+*.pid
+*.orig
+*.swm
 EthosNet/
 lib/googletest/*
 lib/boost/*

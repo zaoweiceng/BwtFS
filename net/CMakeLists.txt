@@ -67,8 +67,8 @@ if(WIN32)
     target_link_libraries(${BINARY} PRIVATE Ws2_32 Mswsock)
 else()
       # Linux 需要 pthread 和 rt 库
-  target_link_libraries(${BINARY} PRIVATE pthread rt)
-  
-  # 添加 Boost 库路径到链接器搜索路径
-#   link_directories(${Boost_LIBRARY_DIRS})
+    target_link_libraries(${BINARY} PRIVATE pthread)
+    if (NOT APPLE)
+        target_link_libraries(${BINARY} PRIVATE rt)
+    endif()
 endif()

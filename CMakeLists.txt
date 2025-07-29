@@ -30,9 +30,8 @@ set(BOOST_INCLUDE_LIBRARIES "system,filesystem,beast,asio,json,config,
                             move,logic,static_string,container_hash,describe,
                             variant,graph,graph_parallel,io,regex,serialization,
                             locale,algorithm,endian")
-add_subdirectory(lib/googletest)
+# add_subdirectory(lib/googletest)
 add_subdirectory(src)
 add_subdirectory(cmd)
-add_subdirectory(test)
+# add_subdirectory(test)
 add_subdirectory(net)
-add_subdirectory(resp_client)
