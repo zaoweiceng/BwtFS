@@ -38,3 +38,6 @@ EthosNet/
 lib/googletest/*
 lib/boost/*
 lib/jsoncpp/*
+**/CLAUDE.md
+.DS_Store
+Thumbs.db

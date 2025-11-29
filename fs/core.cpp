@@ -45,7 +45,7 @@ int MyFS::read(int fd, char* buf, size_t size, off_t offset) {
         return 0; // EOF
     }
 
-    size = std::min(size, f.data.size() - offset);
+    size = std::min<size_t>(size, f.data.size() - offset);
     memcpy(buf, f.data.data() + offset, size);
     std::cout << "[read] fd=" << fd << " offset=" << offset << " size=" << size << std::endl;
     return size;
