@@ -266,11 +266,6 @@ static int myfs_chown_fuse(const char *path, uid_t uid, gid_t gid, struct fuse_f
 }
 #endif
 
-//----------------------------------------
-// macOS FUSE 2.9 API 适配函数
-// 因为macOS FUSE 2.9的API与更高版本不同，需要提供适配层
-//----------------------------------------
-
 #ifdef __APPLE__
     // macOS适配函数 - getattr函数没有fuse_file_info参数
 static int myfs_getattr_macos_adapter(const char *path, struct stat *stbuf) {
@@ -364,8 +359,8 @@ int main(int argc, char *argv[]){
     char *my_argv[] = {
             argv[0],
             argv[1],                                     // 用户提供的挂载点
-            (char *)"-o", (char *)"file_system=MyFS",     // 文件系统名称
-            (char *)"-o", (char *)"volname=MyFS",        // 卷标名称
+            (char *)"-o", (char *)"file_system=bwtfs",     // 文件系统名称
+            (char *)"-o", (char *)"volname=bwtfs",        // 卷标名称
             (char *)"-o", (char *)"uid=0",               // 用户ID
             (char *)"-o", (char *)"gid=0",               // 组ID
             NULL
@@ -376,7 +371,7 @@ int main(int argc, char *argv[]){
             argv[0],
             argv[1],                                     // 用户提供的挂载点
             (char *)"-o", (char *)"allow_other",         // 允许其他用户访问
-            (char *)"-o", (char *)"volname=MyFS",        // 卷标名称
+            (char *)"-o", (char *)"volname=bwtfs",        // 卷标名称
             (char *)"-o", (char *)"uid=501",             // 当前用户ID（需要根据实际用户调整）
             (char *)"-o", (char *)"gid=20",              // 当前组ID（staff组）
             NULL
@@ -387,7 +382,7 @@ int main(int argc, char *argv[]){
             argv[0],
             argv[1],                                     // 用户提供的挂载点
             (char *)"-o", (char *)"allow_other",         // 允许其他用户访问
-            (char *)"-o", (char *)"volname=MyFS",        // 卷标名称
+            (char *)"-o", (char *)"volname=bwtfs",        // 卷标名称
             (char *)"-o", (char *)"uid=1000",           // 当前用户ID（需要根据实际用户调整）
             (char *)"-o", (char *)"gid=1000",            // 当前组ID
             NULL

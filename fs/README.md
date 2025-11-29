@@ -43,30 +43,18 @@ brew install cmake pkg-config
 # 安装 macFUSE (需要系统权限)
 brew install --cask macfuse
 
-# 或者从官网下载安装
-# https://github.com/macfuse/macfuse/releases
 ```
 
 ### Windows
 ```bash
-# 使用 vcpkg 安装依赖
-vcpkg install cmake
-
-# 手动下载安装 WinFSP
-# https://github.com/winfsp/winfsp/releases
+# 下载安装 WinFSP
+https://github.com/winfsp/winfsp/releases
 ```
 
 ### Linux
 ```bash
-# Ubuntu/Debian
 sudo apt-get update
 sudo apt-get install cmake pkg-config libfuse3-dev
-
-# CentOS/RHEL
-sudo yum install cmake pkgconfig fuse3-devel
-
-# 或者使用 dnf (较新版本)
-sudo dnf install cmake pkgconfig fuse3-devel
 ```
 
 ## 编译说明
@@ -114,6 +102,9 @@ ls -la myfs
 ## 使用方法
 
 ### 快速开始
+
+#### Linux
+
 ```bash
 # 1. 编译项目
 mkdir build && cd build
@@ -136,236 +127,27 @@ ls -la
 umount ~/myfs_mount
 ```
 
-### 挂载选项
+#### Windows
 ```bash
-# 前台运行 (推荐用于测试)
-./myfs ~/myfs_mount
+# 1. 编译项目
+mkdir build && cd build
+cmake ..
+# 使用VS打开sln，然后生成解决方案
 
-# 后台运行
-./myfs ~/myfs_mount &
+# 2. 拷贝必要的dll文件
+# Winfsp安装目录： C:\Program Files (x86)\WinFsp\bin
+# 根据系统选择文件：winfsp-x64.dll
 
-# 调试模式
-./myfs -f -d ~/myfs_mount
+# 3. 挂载文件系统
+# windows环境下作为磁盘进行挂载
+./myfs X:
+
+# 4. 卸载文件系统
+# 退出程序即可卸载
 ```
 
-### 测试文件系统
-```bash
-# 挂载后，在另一个终端中测试
-cd ~/myfs_mount
 
-# 创建文件
-echo "Hello BwtFS" > test.txt
 
-# 读取文件
-cat test.txt
-
-# 列出文件
-ls -la
-
-# 删除文件
-rm test.txt
-
-# 测试目录结构
-mkdir subdir
-echo "Sub file" > subdir/sub.txt
-ls -la subdir/
-```
-
-### 自动化脚本
-项目提供了 `example_usage.sh` 脚本，提供交互式使用体验：
-```bash
-./example_usage.sh
-```
-
-功能包括：
-- 自动检测编译好的可执行文件
-- 验证FUSE安装状态
-- 提供前台/后台运行选项
-- 详细的操作指导
-
-## 已实现功能
-
-### FUSE 操作集
-- **getattr**: 获取文件属性 (ls 命令)
-- **readdir**: 读取目录内容 (ls 命令)
-- **open**: 打开文件
-- **create**: 创建文件
-- **read**: 读取文件内容
-- **write**: 写入文件内容
-- **unlink**: 删除文件
-- **release**: 关闭文件
-- **statfs**: 获取文件系统统计信息
-- **access**: 文件访问权限检查
-- **chmod**: 修改文件权限 (简化实现)
-- **chown**: 修改文件所有者 (简化实现)
-
-### 跨平台兼容性
-
-#### Windows (WinFSP)
-- 使用 `fuse_stat` 结构体
-- 支持 `FUSE_FILL_DIR_PLUS` 标志
-- 使用 `fuse_main_real()` 入口函数
-
-#### macOS (macFUSE 2.9)
-- 使用标准 `stat` 结构体
-- 不支持 `FUSE_FILL_DIR_PLUS` 标志
-- 使用 `fuse_main()` 入口函数
-- 特殊的函数签名适配 (无 fuse_file_info 参数)
-
-#### Linux (libfuse3)
-- 使用标准 `stat` 结构体
-- 支持 `FUSE_FILL_DIR_PLUS` 标志
-- 使用 `fuse_main()` 入口函数
-
-## 技术架构
-
-### 平台检测机制
-```cpp
-#ifdef _WIN32
-    // Windows WinFSP 实现
-    #define FUSE_USE_VERSION 29
-    #include <fuse.h>
-    // 使用 fuse_stat, fuse_off_t, fuse_mode_t 等自定义类型
-#elif defined(__APPLE__)
-    // macOS macFUSE 实现
-    #define FUSE_USE_VERSION 26
-    #include <fuse.h>
-    // 使用标准 stat, off_t, mode_t 等类型
-#else
-    // Linux libfuse3 实现
-    #define FUSE_USE_VERSION 35
-    #include <fuse3/fuse.h>
-    // 使用标准类型和新的API
-#endif
-```
-
-### API差异处理
-
-#### 函数签名差异
-**Windows WinFSP (3参数版本):**
-```cpp
-static int myfs_getattr(const char *path, struct fuse_stat *stbuf, struct fuse_file_info *fi)
-```
-
-**macOS FUSE 2.9 (2参数版本):**
-```cpp
-static int myfs_getattr(const char *path, struct stat *stbuf)
-```
-
-**Linux FUSE3 (3参数版本):**
-```cpp
-static int myfs_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi)
-```
-
-#### readdir函数差异
-```cpp
-// Windows/Linux: 支持 flags 参数
-static int myfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
-                        off_t offset, struct fuse_file_info *fi,
-                        enum fuse_readdir_flags flags)
-
-// macOS: 无 flags 参数
-static int myfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
-                        off_t offset, struct fuse_file_info *fi)
-```
-
-### 适配函数设计
-针对macOS FUSE 2.9的特殊要求，实现了适配层：
-```cpp
-#ifdef __APPLE__
-// 适配函数 - 移除不需要的参数
-static int myfs_getattr_macos_adapter(const char *path, struct stat *stbuf) {
-    return myfs_getattr(path, stbuf, nullptr);
-}
-
-static int myfs_chmod_macos_adapter(const char *path, mode_t mode) {
-    return myfs_chmod_fuse(path, mode, nullptr);
-}
-
-static int myfs_chown_macos_adapter(const char *path, uid_t uid, gid_t gid) {
-    return myfs_chown_fuse(path, uid, gid, nullptr);
-}
-#endif
-```
-
-### 构建系统
-```cmake
-# 平台自动检测
-if (WIN32)
-    # Windows WinFSP 配置
-    set(WINFSP_INCLUDE_DIR "C:/Program Files (x86)/WinFsp/inc/fuse3")
-    target_link_libraries(myfs PRIVATE winfsp-x64 ws2_32)
-elseif (APPLE)
-    # macOS macFUSE 配置
-    pkg_check_modules(FUSE REQUIRED fuse)
-    target_link_libraries(myfs PRIVATE ${FUSE_LIBRARIES})
-else()
-    # Linux libfuse3 配置
-    pkg_check_modules(FUSE3 REQUIRED fuse3)
-    target_link_libraries(myfs PRIVATE ${FUSE3_LIBRARIES})
-endif()
-```
-
-### 核心数据结构
-```cpp
-class MyFS {
-public:
-    struct File {
-        std::string name;
-        std::vector<char> data;
-    };
-
-private:
-    std::unordered_map<std::string, File> files_;   // 文件名 -> 文件数据
-    std::unordered_map<int, std::string> fd_map_;   // 文件描述符 -> 文件名
-    int next_fd_ = 3;                               // 下一个可用文件描述符
-};
-```
-
-## 兼容性矩阵
-
-| 功能 | Windows (WinFSP) | macOS (macFUSE) | Linux (libfuse3) |
-|------|------------------|-----------------|-------------------|
-| getattr | ✅ | ✅ | ✅ |
-| readdir | ✅ | ✅ | ✅ |
-| open | ✅ | ✅ | ✅ |
-| create | ✅ | ✅ | ✅ |
-| read | ✅ | ✅ | ✅ |
-| write | ✅ | ✅ | ✅ |
-| unlink | ✅ | ✅ | ✅ |
-| release | ✅ | ✅ | ✅ |
-| statfs | ✅ | ✅ | ✅ |
-| access | ✅ | ✅ | ✅ |
-| chmod | ✅ | ✅ | ✅ |
-| chown | ✅ | ✅ | ✅ |
-| FUSE_FILL_DIR_PLUS | ✅ | ❌ | ✅ |
-| fuse_file_info参数 | ✅ | ❌ | ✅ |
-
-## 性能特性
-
-### 已优化
-- **内存存储**: 基于内存的高速文件访问
-- **描述符复用**: 高效的文件描述符管理
-- **编译优化**: `-O2` 优化级别
-
-### 待优化
-- **大文件处理**: 当前实现适合中小文件
-- **并发访问**: 需要添加互斥锁保护
-- **缓存机制**: 可添加读写缓存优化
-- **异步I/O**: 可实现异步操作提升性能
-
-## 安全特性
-
-### 当前实现
-- **基础错误检查**: 文件存在性验证
-- **资源清理**: 文件描述符自动管理
-- **权限控制**: 简化的权限检查
-
-### 安全增强建议
-- **输入验证**: 文件名和路径安全检查
-- **资源限制**: 文件大小和数量限制
-- **访问控制**: 更完善的权限管理
-- **审计日志**: 操作记录和监控
 
 ## 故障排除
 
@@ -479,29 +261,3 @@ BwtFS/fs/
 - **Debug模式**: 可启用调试信息和断言
 - **C++标准**: C++17 (主要项目) / C++20 (FUSE组件)
 - **警告级别**: 启用常用警告和静态分析
-
-## 总结
-
-本项目成功实现了：
-
-1. **✅ 完全跨平台**: Windows、macOS、Linux三平台支持
-2. **✅ 标准FUSE接口**: 实现了完整的FUSE操作集
-3. **✅ 适配层设计**: 优雅处理不同FUSE版本API差异
-4. **✅ 现代C++**: 使用C++17/20特性，代码质量高
-5. **✅ 详细的文档**: 包含使用指南、技术文档和故障排除
-6. **✅ 自动化工具**: 提供构建和使用脚本
-7. **✅ 隐私保护**: 专注于反跟踪和不可恢复的数据访问
-
-该实现为BwtFS项目提供了坚实的跨平台FUSE基础，可以在此基础上进一步开发高级功能，如加密存储、分布式访问、性能优化等。
-
-## 许可证
-
-本项目基于 GPL 许可证开源。详见根目录 LICENSE 文件。
-
-## 贡献
-
-欢迎提交 Issue 和 Pull Request 来改进本项目。
-
-## 联系方式
-
-如有问题或建议，请通过 GitHub Issues 联系。
