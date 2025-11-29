@@ -186,21 +186,6 @@ cmake ..
    services.msc  # 检查WinFsp服务状态
    ```
 
-### 调试模式
-```bash
-# 启用调试输出
-./myfs -f -d ~/myfs_mount
-
-# 查看系统日志 (macOS)
-log show --predicate 'process == "myfs"'
-
-# 使用系统调用跟踪 (Linux)
-strace -f ./myfs ~/myfs_mount
-
-# 使用dtrace (macOS)
-dtruss -f ./myfs ~/myfs_mount
-```
-
 ## 项目结构
 
 ```
@@ -211,7 +196,6 @@ BwtFS/fs/
 ├── core.cpp                # 文件系统核心实现
 ├── demo.c                  # macOS FUSE参考实现
 ├── README.md               # 本文档
-├── example_usage.sh        # 自动化使用脚本
 └── build/                  # 编译输出目录
     ├── CMakeCache.txt
     ├── Makefile

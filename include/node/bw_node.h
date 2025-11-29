@@ -31,7 +31,8 @@ namespace BwtFS::Node{
             tree_base_node(Binary value, uint8_t level, unsigned seed, unsigned start, unsigned length)
              : m_value(value), start(start), length(length){
                 E e;
-                if constexpr (E::value == "RCAEncryptor") {
+                // if constexpr (E::value == "RCAEncryptor") {
+                if constexpr (std::is_same<E, RCAEncryptor>::value) {
                     auto seeds = BwtFS::Util::RandNumbers<uint16_t>(level, seed, 0, 1<<15);
                     std::reverse(seeds.begin(), seeds.end());
                     for (int i = 0; i < level; i++) {
@@ -113,7 +114,8 @@ namespace BwtFS::Node{
                 Binary binary_data = this->to_binary();
                 // LOG_INFO << binary_data.to_ascll_string();
                 auto seeds = BwtFS::Util::RandNumbers<uint16_t>(level, seed, 0, 1<<15);
-                if constexpr (E::value == "RCAEncryptor") {
+                // if constexpr (E::value == "RCAEncryptor") {
+                if constexpr (std::is_same<E, RCAEncryptor>::value) {
                     for (int i = 0; i < level; i++) {
                         E e;
                         e.setBinary(binary_data);
@@ -239,7 +241,8 @@ namespace BwtFS::Node{
                 Binary binary_data = this->to_binary();
                 LOG_DEBUG << "seed: " << seed << ", level: " << int(level);
                 auto seeds = BwtFS::Util::RandNumbers<uint16_t>(level, seed, 0, 1<<15);
-                if constexpr (E::value == "RCAEncryptor") {
+                // if constexpr (E::value == "RCAEncryptor") {
+                if constexpr (std::is_same<E, RCAEncryptor>::value) {
                     for (int i = 0; i < level; i++) {
                         E e;
                         e.setBinary(binary_data);

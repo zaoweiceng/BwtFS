@@ -136,7 +136,8 @@ public:
 
     void* allocate(size_t size) {
         // void* p = ::operator new(size);
-        if constexpr (E::value == "RCAEncryptor") {
+        // if constexpr (E::value == "RCAEncryptor") {
+        if constexpr (std::is_same<E, RCAEncryptor>::value) {
             auto data = std::make_shared<std::vector<std::byte>>(size);
             m_data = new Binary(data);
             // static_cast<RCAEncryptor*>(this->m_encryptor.get())->setSeed(reinterpret_cast<uintptr_t>(&data->data()[0]));
@@ -145,7 +146,8 @@ public:
             this->m_encryptor = std::make_unique<RCAEncryptor>(reinterpret_cast<uintptr_t>(&data->data()[0]), *m_data);
             void* p = m_data->data();
             return p;
-        }else if constexpr (E::value == "XOREncryptor") {
+        // }else if constexpr (E::value == "XOREncryptor") {
+        } else if constexpr (std::is_same<E, XOREncryptor>::value) {
             auto data = std::make_shared<std::vector<std::byte>>(size);
             m_data = new Binary(data);
             void* p = m_data->data();
