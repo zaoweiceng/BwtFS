@@ -55,7 +55,20 @@ CommandArgs CommandHandler::parseArguments(int argc, char* argv[]) {
                 args.type = CommandType::INTERACTIVE;
             }
         } else if (args.arguments.size() == 2) {
-            args.type = CommandType::WRITE_FILE;
+            // Check if this is a retrieve command (file system path + token)
+            std::string firstArg = args.arguments[0];
+            std::string secondArg = args.arguments[1];
+
+            if (FileOps::isValidToken(secondArg)) {
+                args.type = CommandType::RETRIEVE_FILE;
+            } else {
+                args.type = CommandType::WRITE_FILE;
+            }
+        } else if (args.arguments.size() == 3) {
+            // Could be retrieve with output file path: system_path token output_path
+            if (FileOps::isValidToken(args.arguments[1])) {
+                args.type = CommandType::RETRIEVE_FILE;
+            }
         }
     }
 
@@ -104,6 +117,15 @@ int CommandHandler::executeCommand(const CommandArgs& args) {
                     return 1;
                 }
 
+            case CommandType::RETRIEVE_FILE:
+                if (args.arguments.size() >= 2) {
+                    std::string outputPath = (args.arguments.size() >= 3) ? args.arguments[2] : "";
+                    return runRetrieveFileMode(args.arguments[0], args.arguments[1], outputPath);
+                } else {
+                    UI::showError("参数错误", "文件获取模式需要至少两个参数");
+                    return 1;
+                }
+
             default:
                 UI::showError("未知命令", "无法识别的命令类型");
                 showHelp();
@@ -124,11 +146,12 @@ int CommandHandler::runInteractiveMode() {
         std::cout << "请选择操作:\n";
         std::cout << "1. 写入文件到文件系统\n";
         std::cout << "2. 创建新的文件系统\n";
-        std::cout << "3. 显示文件系统信息\n";
-        std::cout << "4. 退出程序\n";
+        std::cout << "3. 使用令牌获取文件\n";
+        std::cout << "4. 显示文件系统信息\n";
+        std::cout << "5. 退出程序\n";
         UI::showSeparator();
 
-        std::cout << "请输入选项 (1-4): ";
+        std::cout << "请输入选项 (1-5): ";
         std::string choice;
         std::getline(std::cin, choice);
 
@@ -156,13 +179,30 @@ int CommandHandler::runInteractiveMode() {
             runCreateFSMode();
 
         } else if (choice == "3") {
+            // 使用令牌获取文件
+            std::string systemPath = UI::promptFileSystemPath();
+            if (systemPath.empty()) continue;
+
+            if (!FileOps::bwtFSExists(systemPath)) {
+                UI::showError("文件系统错误", "指定的BwtFS文件系统不存在");
+                continue;
+            }
+
+            std::string token = UI::promptToken();
+            if (token.empty()) continue;
+
+            std::string outputPath = UI::promptOutputPath();
+
+            runRetrieveFileMode(systemPath, token, outputPath);
+
+        } else if (choice == "4") {
             // 显示文件系统信息
             std::string systemPath = UI::promptFileSystemPath();
             if (!systemPath.empty()) {
                 showBwtFSInfo(systemPath);
             }
 
-        } else if (choice == "4") {
+        } else if (choice == "5") {
             // 退出
             UI::showInfo("感谢使用BwtFS文件系统");
             break;
@@ -265,6 +305,49 @@ int CommandHandler::runWriteFileMode(const std::string& systemPath, const std::s
     return 0;
 }
 
+int CommandHandler::runRetrieveFileMode(const std::string& systemPath, const std::string& token, const std::string& outputPath) {
+    // 确定文件系统路径
+    std::string fsPath;
+
+    if (UI::isValidBwtFSPath(systemPath)) {
+        fsPath = systemPath;
+    } else {
+        UI::showError("参数错误", "无效的BwtFS文件系统路径: " + systemPath);
+        return 1;
+    }
+
+    // 验证文件系统
+    if (!FileOps::bwtFSExists(fsPath)) {
+        UI::showError("文件系统错误", "BwtFS文件系统不存在: " + fsPath);
+        return 1;
+    }
+
+    // 验证token
+    if (!FileOps::isValidToken(token)) {
+        UI::showError("Token错误", "无效的访问令牌格式");
+        return 1;
+    }
+
+    UI::showInfo("正在从文件系统获取文件: " + fsPath);
+    UI::showInfo("使用访问令牌: " + token.substr(0, 10) + "...");
+
+    // 获取文件
+    auto result = handleRetrieveFile(fsPath, token, outputPath);
+    if (result.success) {
+        if (!outputPath.empty()) {
+            UI::showSuccess("文件获取成功", "输出文件: " + outputPath);
+            UI::showInfo("文件大小: " + UI::formatFileSize(result.bytesProcessed));
+        } else {
+            UI::showSuccess("文件获取成功", "文件已输出到标准输出");
+            UI::showInfo("文件大小: " + UI::formatFileSize(result.bytesProcessed));
+        }
+    } else {
+        return handleError("获取文件", result);
+    }
+
+    return 0;
+}
+
 void CommandHandler::showHelp() {
     UI::showHelp();
 }
@@ -332,6 +415,32 @@ FileOps::OperationResult CommandHandler::handleWriteFile(const std::string& syst
     };
 
     auto result = FileOps::writeFileToBwtFSWithProgress(systemPath, filePath, progressCallback);
+
+    if (m_verbose) {
+        std::cout << "\n"; // 进度显示换行
+    }
+
+    return result;
+}
+
+FileOps::OperationResult CommandHandler::handleRetrieveFile(const std::string& systemPath, const std::string& token, const std::string& outputPath) {
+    // 创建进度回调函数
+    auto progressCallback = [this](size_t bytesWritten, size_t totalBytes) {
+        if (m_verbose && totalBytes > 0) {
+            double progress = static_cast<double>(bytesWritten) / totalBytes * 100.0;
+            std::cout << "\r进度: " << std::fixed << std::setprecision(1) << progress << "% "
+                      << "(" << UI::formatFileSize(bytesWritten) << "/" << UI::formatFileSize(totalBytes) << ")";
+            std::cout.flush();
+        }
+    };
+
+    // 根据是否有输出路径选择相应的函数
+    FileOps::OperationResult result;
+    if (!outputPath.empty()) {
+        result = FileOps::retrieveFileFromBwtFS(systemPath, token, outputPath);
+    } else {
+        result = FileOps::retrieveFileFromBwtFS(systemPath, token);
+    }
 
     if (m_verbose) {
         std::cout << "\n"; // 进度显示换行

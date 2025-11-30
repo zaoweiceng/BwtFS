@@ -212,5 +212,122 @@ BwtFSInfo getBwtFSInfo(const std::string& systemPath) {
     return info;
 }
 
+OperationResult retrieveFileFromBwtFS(const std::string& systemPath, const std::string& token, const std::string& outputPath) {
+    // 验证token格式
+    if (!isValidToken(token)) {
+        return OperationResult(false, "无效的token格式");
+    }
+
+    // 验证BwtFS文件系统
+    if (!bwtFSExists(systemPath)) {
+        return OperationResult(false, "BwtFS文件系统不存在: " + systemPath);
+    }
+
+    try {
+        // 创建黑白树对象用于读取
+        BwtFS::Node::bw_tree tree(token);
+
+        // 打开输出文件
+        std::ofstream outputFile(outputPath, std::ios::out | std::ios::binary);
+        if (!outputFile.is_open()) {
+            return OperationResult(false, "无法创建输出文件: " + outputPath);
+        }
+
+        UI::showProgress("正在从文件系统读取数据");
+
+        // 分块读取文件数据
+        constexpr size_t chunk_size = 4096; // 4KB chunks
+        size_t totalBytesRead = 0;
+        int index = 0;
+
+        while (true) {
+            auto data = tree.read(index, chunk_size);
+
+            if (data.empty()) {
+                break;
+            }
+
+            // Cast std::byte data to const char* for writing
+            outputFile.write(reinterpret_cast<const char*>(data.data()), data.size());
+            totalBytesRead += data.size();
+            index += data.size();
+
+            if (data.size() < chunk_size) {
+                break;
+            }
+        }
+
+        outputFile.close();
+
+        OperationResult result(true, "文件获取成功");
+        result.bytesProcessed = totalBytesRead;
+
+        return result;
+
+    } catch (const std::exception& e) {
+        return OperationResult(false, std::string("文件获取过程中发生错误: ") + e.what());
+    }
+}
+
+OperationResult retrieveFileFromBwtFS(const std::string& systemPath, const std::string& token) {
+    // 验证token格式
+    if (!isValidToken(token)) {
+        return OperationResult(false, "无效的token格式");
+    }
+
+    // 验证BwtFS文件系统
+    if (!bwtFSExists(systemPath)) {
+        return OperationResult(false, "BwtFS文件系统不存在: " + systemPath);
+    }
+
+    try {
+        // 创建黑白树对象用于读取
+        BwtFS::Node::bw_tree tree(token);
+
+        UI::showProgress("正在从文件系统读取数据");
+
+        // 分块读取文件数据并输出到标准输出
+        constexpr size_t chunk_size = 4096; // 4KB chunks
+        size_t totalBytesRead = 0;
+        int index = 0;
+
+        while (true) {
+            auto data = tree.read(index, chunk_size);
+
+            if (data.empty()) {
+                break;
+            }
+
+            // 输出到标准输出 (Cast std::byte data to const char*)
+            std::cout.write(reinterpret_cast<const char*>(data.data()), data.size());
+            totalBytesRead += data.size();
+            index += data.size();
+
+            if (data.size() < chunk_size) {
+                break;
+            }
+        }
+
+        // 确保缓冲区被刷新
+        std::cout.flush();
+
+        OperationResult result(true, "文件获取成功");
+        result.bytesProcessed = totalBytesRead;
+
+        return result;
+
+    } catch (const std::exception& e) {
+        return OperationResult(false, std::string("文件获取过程中发生错误: ") + e.what());
+    }
+}
+
+bool isValidToken(const std::string& token) {
+    // Token不应该包含路径分隔符
+    if (token.find('/') != std::string::npos) {
+        return false;
+    }
+    return true;
+}
+
 } // namespace FileOps
 } // namespace BwtFS

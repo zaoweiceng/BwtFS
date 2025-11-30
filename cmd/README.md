@@ -1,13 +1,12 @@
 # BwtFS 命令行工具
 
-BwtFS 隐私保护文件系统的命令行界面，提供安全、高效的文件存储和访问功能。
-
 ## 🌟 特性
 
 - **🔒 隐私保护**: 抗溯源存储，不可恢复数据访问
 - **🚀 高性能**: 多线程处理，支持大文件操作
 - **💻 用户友好**: 直观的交互界面和丰富的命令行选项
 - **📊 实时反馈**: 进度显示、文件信息统计
+- **🔑 令牌访问**: 基于令牌的安全文件检索系统
 - **🛡️ 安全可靠**: 完善的错误处理和资源管理
 
 ## 📋 目录
@@ -64,7 +63,20 @@ make
 ./BWTFileSystemProject ./photo.jpg ./storage.bwt
 ```
 
-### 3. 查看信息
+### 3. 使用令牌获取文件
+
+```bash
+# 输出到标准输出
+./BWTFileSystemProject ./data.bwt abc123def456...
+
+# 保存到指定文件
+./BWTFileSystemProject ./data.bwt abc123def456... ./retrieved_file.pdf
+
+# 使用重定向保存
+./BWTFileSystemProject ./data.bwt abc123def456... > output.txt
+```
+
+### 4. 查看信息
 
 ```bash
 # 显示文件系统信息
@@ -101,7 +113,17 @@ BWTFileSystemProject [选项] [命令] [参数...]
 ./BWTFileSystemProject <filesystem_path> <file_path>
 ./BWTFileSystemProject <file_path> <filesystem_path>
 ```
-将文件写入到 BwtFS 文件系统。
+将文件写入到 BwtFS 文件系统，写入成功后返回访问令牌。
+
+#### 4. 使用令牌获取文件
+```bash
+./BWTFileSystemProject <filesystem_path> <token>
+./BWTFileSystemProject <filesystem_path> <token> <output_path>
+```
+使用访问令牌从 BwtFS 文件系统中检索文件：
+- 第一个参数：BwtFS 文件系统路径
+- 第二个参数：文件访问令牌
+- 第三个参数（可选）：输出文件路径，默认输出到标准输出
 
 ## ⚙️ 命令选项
 
@@ -123,6 +145,9 @@ BWTFileSystemProject [选项] [命令] [参数...]
 # 详细模式写入文件
 ./BWTFileSystemProject --verbose ./storage.bwt ./large_file.zip
 
+# 使用令牌获取文件
+./BWTFileSystemProject --verbose ./storage.bwt abc123def456... ./retrieved_file.zip
+
 # 查看文件系统信息
 ./BWTFileSystemProject --info ./storage.bwt
 ```
@@ -137,8 +162,9 @@ BWTFileSystemProject [选项] [命令] [参数...]
 请选择操作:
 1. 写入文件到文件系统
 2. 创建新的文件系统
-3. 显示文件系统信息
-4. 退出程序
+3. 使用令牌获取文件
+4. 显示文件系统信息
+5. 退出程序
 ```
 
 ### 交互流程
@@ -148,6 +174,7 @@ BWTFileSystemProject [选项] [命令] [参数...]
    - 输入 BwtFS 文件系统路径
    - 输入要写入的文件路径
    - 查看进度和结果
+   - 保存生成的访问令牌
 
 2. **创建文件系统**
    - 选择选项 2
@@ -155,8 +182,15 @@ BWTFileSystemProject [选项] [命令] [参数...]
    - 输入文件系统大小（MB）
    - 确认创建
 
-3. **查看信息**
+3. **使用令牌获取文件**
    - 选择选项 3
+   - 输入 BwtFS 文件系统路径
+   - 输入文件访问令牌
+   - 输入输出文件路径（可选，直接回车输出到标准输出）
+   - 查看进度和结果
+
+4. **查看信息**
+   - 选择选项 4
    - 输入文件系统路径
    - 查看详细统计信息
 
@@ -184,11 +218,27 @@ BWTFileSystemProject [选项] [命令] [参数...]
 
 ### 进度显示
 
-在详细模式下，文件写入会显示实时进度：
+在详细模式下，文件写入和获取都会显示实时进度：
 
 ```
 进度: 45.2% (450.5 MB/1.00 GB)
 ```
+
+### 令牌系统
+
+BwtFS 使用基于令牌的文件访问系统：
+
+**令牌特点：**
+- 每个文件写入时自动生成唯一令牌
+- 令牌验证确保文件访问安全性
+
+**令牌格式验证：**
+- 不包含路径分隔符（如 '/'）
+
+**令牌使用：**
+- 写入文件后系统会返回访问令牌
+- 保存令牌用于后续文件检索
+- 令牌可以安全地分享给授权用户
 
 ### 文件大小格式化
 
@@ -201,7 +251,7 @@ BWTFileSystemProject [选项] [命令] [参数...]
 
 ## 📝 示例
 
-### 示例 1：基本工作流程
+### 示例：基本工作流程
 
 ```bash
 # 1. 创建新的文件系统
@@ -211,34 +261,13 @@ BWTFileSystemProject [选项] [命令] [参数...]
 
 # 2. 写入文档
 ./BWTFileSystemProject ./mydata.bwt ./report.pdf
+# 输出：文件写入成功，Token: abc123def456...
 
-# 3. 查看结果
+# 3. 使用令牌获取文件
+./BWTFileSystemProject ./mydata.bwt abc123def456... ./retrieved_report.pdf
+
+# 4. 查看结果
 ./BWTFileSystemProject --info ./mydata.bwt
-```
-
-### 示例 2：批量操作
-
-```bash
-# 创建大容量文件系统
-./BWTFileSystemProject create
-# 输入路径：./archive.bwt
-# 输入大小：10240（10GB）
-
-# 写入多个文件（循环）
-for file in *.jpg; do
-    ./BWTFileSystemProject ./archive.bwt "$file"
-    echo "已写入: $file"
-done
-```
-
-### 示例 3：开发调试
-
-```bash
-# 详细模式查看操作过程
-./BWTFileSystemProject --verbose ./test.bwt ./debug.log
-
-# 查看创建的文件系统
-./BWTFileSystemProject --info ./test.bwt
 ```
 
 ## 🔧 故障排除
@@ -275,6 +304,35 @@ done
 - 确认是否覆盖现有文件
 - 检查磁盘空间
 
+#### 4. 令牌获取文件失败
+```
+✗ Token错误: 无效的访问令牌格式
+```
+
+**解决方案:**
+- 检查令牌是否完整
+- 确认令牌没有多余的空格或换行符
+- 验证令牌是否来自正确的文件系统
+
+#### 5. 文件不存在
+```
+✗ 获取文件失败: File not found
+```
+
+**解决方案:**
+- 确认令牌对应的文件仍然存在于文件系统中
+- 检查文件系统是否损坏
+- 验证令牌是否正确复制
+
+#### 6. 令牌验证失败
+```
+✗ Token错误: 令牌包含无效字符
+```
+
+**解决方案:**
+- 重新复制令牌，确保没有额外字符
+- 检查令牌中没有路径分隔符（如 '/'）
+
 ### 调试技巧
 
 1. **启用详细模式**
@@ -292,13 +350,6 @@ done
    ls -la *.bwt
    ```
 
-### 日志和错误信息
-
-- `✓` - 操作成功
-- `✗` - 操作失败
-- `⚠` - 警告信息
-- `ℹ` - 一般信息
-- `→` - 进行中的操作
 
 ## 👨‍💻 开发指南
 

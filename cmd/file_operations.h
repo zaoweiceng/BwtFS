@@ -112,6 +112,30 @@ struct BwtFSInfo {
  */
 BwtFSInfo getBwtFSInfo(const std::string& systemPath);
 
+/**
+ * @brief 从BwtFS文件系统使用token获取文件
+ * @param systemPath BwtFS文件系统路径
+ * @param token 文件访问令牌
+ * @param outputPath 输出文件路径
+ * @return 操作结果
+ */
+OperationResult retrieveFileFromBwtFS(const std::string& systemPath, const std::string& token, const std::string& outputPath);
+
+/**
+ * @brief 从BwtFS文件系统使用token获取文件并输出到标准输出
+ * @param systemPath BwtFS文件系统路径
+ * @param token 文件访问令牌
+ * @return 操作结果
+ */
+OperationResult retrieveFileFromBwtFS(const std::string& systemPath, const std::string& token);
+
+/**
+ * @brief 验证token格式是否有效
+ * @param token 要验证的token
+ * @return token是否有效
+ */
+bool isValidToken(const std::string& token);
+
 } // namespace FileOps
 } // namespace BwtFS
 

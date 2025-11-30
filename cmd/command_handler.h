@@ -15,6 +15,7 @@ enum class CommandType {
     INTERACTIVE,    // 交互模式
     CREATE_FS,      // 创建文件系统
     WRITE_FILE,     // 写入文件
+    RETRIEVE_FILE,  // 获取文件
     SHOW_HELP,      // 显示帮助
     SHOW_VERSION,   // 显示版本
     SHOW_INFO,      // 显示信息
@@ -83,6 +84,15 @@ public:
     int runWriteFileMode(const std::string& systemPath, const std::string& filePath);
 
     /**
+     * @brief 运行文件获取模式
+     * @param systemPath 文件系统路径
+     * @param token 文件访问令牌
+     * @param outputPath 输出文件路径（可选，默认输出到标准输出）
+     * @return 执行结果（0成功，非0失败）
+     */
+    int runRetrieveFileMode(const std::string& systemPath, const std::string& token, const std::string& outputPath = "");
+
+    /**
      * @brief 显示帮助信息
      */
     void showHelp();
@@ -134,6 +144,15 @@ private:
      * @return 执行结果
      */
     FileOps::OperationResult handleWriteFile(const std::string& systemPath, const std::string& filePath);
+
+    /**
+     * @brief 处理文件获取
+     * @param systemPath 文件系统路径
+     * @param token 文件访问令牌
+     * @param outputPath 输出文件路径（可选）
+     * @return 执行结果
+     */
+    FileOps::OperationResult handleRetrieveFile(const std::string& systemPath, const std::string& token, const std::string& outputPath = "");
 
     /**
      * @brief 处理错误情况

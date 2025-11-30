@@ -38,8 +38,6 @@ void showVersion() {
 }
 
 void showHelp() {
-    showBanner();
-    std::cout << "\n";
     showSeparator();
     std::cout << "BwtFS 隐私保护文件系统 - 使用帮助\n";
     showSeparator();
@@ -48,38 +46,36 @@ void showHelp() {
     std::cout << "  " << "BWTFileSystemProject" << " create              [创建文件系统]\n";
     std::cout << "  " << "BWTFileSystemProject" << " <fs_path> <file>    [写入文件到文件系统]\n";
     std::cout << "  " << "BWTFileSystemProject" << " <file> <fs_path>    [写入文件到文件系统]\n";
+    std::cout << "  " << "BWTFileSystemProject" << " <fs_path> <token>  [使用令牌获取文件]\n";
+    std::cout << "  " << "BWTFileSystemProject" << " <fs_path> <token> <output_path>  [获取文件并保存到指定路径]\n";
     std::cout << "  " << "BWTFileSystemProject" << " --help             [显示此帮助信息]\n";
     std::cout << "  " << "BWTFileSystemProject" << " --version          [显示版本信息]\n";
     std::cout << "  " << "BWTFileSystemProject" << " --info <fs_path>   [显示文件系统信息]\n";
     std::cout << "\n参数说明:\n";
     std::cout << "  <fs_path>    BwtFS文件系统路径（.bwt扩展名）\n";
     std::cout << "  <file>       要写入的文件路径\n";
+    std::cout << "  <token>      文件访问令牌（写入时自动生成）\n";
+    std::cout << "  <output_path> 输出文件路径（可选，默认输出到标准输出）\n";
     std::cout << "\n示例:\n";
     std::cout << "  " << "BWTFileSystemProject" << " create\n";
     std::cout << "  " << "BWTFileSystemProject" << " ./data.bwt ./document.pdf\n";
     std::cout << "  " << "BWTFileSystemProject" << " ./photo.jpg ./data.bwt\n";
-    std::cout << "\n功能特点:\n";
-    std::cout << "  • 抗溯源隐私存储\n";
-    std::cout << "  • 不可恢复数据访问\n";
-    std::cout << "  • 协议层透明保护\n";
-    std::cout << "  • 支持大文件处理\n";
-    std::cout << "  • 多线程优化性能\n";
+    std::cout << "  " << "BWTFileSystemProject" << " ./data.bwt abc123def456...  # 输出到标准输出\n";
+    std::cout << "  " << "BWTFileSystemProject" << " ./data.bwt abc123def456... ./retrieved.pdf\n";
     showSeparator();
 }
 
 void showBanner() {
     clearScreen();
     std::cout << "\n";
-    showSeparator(60, '=');
-    std::cout << "██╗  ██╗███╗   ██╗ ██████╗ ██╗    ██╗███████╗\n";
-    std::cout << "██║ ██╔╝████╗  ██║██╔═══██╗██║    ██║██╔════╝\n";
-    std::cout << "██████╔╝██╔██╗ ██║██║   ██║██║ █╗ ██║█████╗  \n";
-    std::cout << "██╔══██╗██║╚██╗██║██║   ██║██║███╗██║██╔══╝  \n";
-    std::cout << "██║  ██║██║ ╚████║╚██████╔╝╚███╔███╔╝███████╗\n";
-    std::cout << "╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝  ╚══╝╚══╝ ╚══════╝\n";
-    std::cout << "                    隐私保护文件系统\n";
-    std::cout << "              Privacy-Preserving File System\n";
-    showSeparator(60, '=');
+    showSeparator(45, '=');
+    std::cout << "██████╗ ██╗    ██╗████████╗███████╗███████╗\n";
+    std::cout << "██╔══██╗██║    ██║╚══██╔══╝██╔════╝██╔════╝\n";
+    std::cout << "██████╔╝██║ █╗ ██║   ██║   █████╗  ███████╗\n";
+    std::cout << "██╔══██╗██║███╗██║   ██║   ██╔══╝  ╚════██║\n";
+    std::cout << "██████╔╝╚███╔███╔╝   ██║   ██╗     ███████║\n";
+    std::cout << "╚═════╝  ╚══╝╚══╝    ╚═╝   ╚═╝     ╚══════╝\n";
+    showSeparator(45, '=');
 }
 
 std::string promptFileSystemPath(const std::string& prompt) {
@@ -252,6 +248,36 @@ void showFileSummary(const std::string& filePath, size_t fileSize) {
         }
     }
     showSeparator(30);
+}
+
+std::string promptToken(const std::string& prompt) {
+    std::string token;
+    std::cout << prompt;
+    std::getline(std::cin, token);
+
+    // 去除首尾空白字符
+    token.erase(0, token.find_first_not_of(" \t\n\r"));
+    token.erase(token.find_last_not_of(" \t\n\r") + 1);
+
+    if (token.empty()) {
+        showError("输入错误", "访问令牌不能为空");
+        return "";
+    }
+
+    return token;
+}
+
+std::string promptOutputPath(const std::string& prompt) {
+    std::string path;
+    std::cout << prompt;
+    std::getline(std::cin, path);
+
+    // 去除首尾空白字符
+    path.erase(0, path.find_first_not_of(" \t\n\r"));
+    path.erase(path.find_last_not_of(" \t\n\r") + 1);
+
+    // 空字符串表示输出到标准输出
+    return path;
 }
 
 } // namespace UI

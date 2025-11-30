@@ -2,7 +2,7 @@
 
 ## 概述
 
-BwtFS (Burrows-Wheeler Transform File System) 是一个跨平台FUSE文件系统项目，支持三大主流操作系统：
+BwtFS 是一个基于FUSE的跨平台文件系统项目，支持三大主流操作系统：
 - **Windows**: WinFSP (Windows File System Proxy)
 - **macOS**: macFUSE 2.9+
 - **Linux**: libfuse3

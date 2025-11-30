@@ -122,6 +122,20 @@ std::string formatFileSize(size_t bytes);
  */
 void showFileSummary(const std::string& filePath, size_t fileSize);
 
+/**
+ * @brief 提示用户输入访问令牌
+ * @param prompt 提示信息
+ * @return 用户输入的令牌
+ */
+std::string promptToken(const std::string& prompt = "请输入访问令牌：");
+
+/**
+ * @brief 提示用户输入输出文件路径
+ * @param prompt 提示信息
+ * @return 用户输入的路径，空字符串表示输出到标准输出
+ */
+std::string promptOutputPath(const std::string& prompt = "请输入输出文件路径（直接回车输出到标准输出）：");
+
 } // namespace UI
 } // namespace BwtFS
 
