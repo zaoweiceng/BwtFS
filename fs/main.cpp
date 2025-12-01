@@ -47,9 +47,16 @@ static int myfs_getattr(const char *path, struct stat *stbuf, struct fuse_file_i
         return -ENOENT;  // 关键：文件不存在时要返回负值！
     }
 
-    stbuf->st_mode = S_IFREG | 0777;
-    stbuf->st_nlink = 1;
-    stbuf->st_size = it->second.data.size();
+    // 根据文件或目录设置不同的属性
+    if (it->second.is_directory) {
+        stbuf->st_mode = S_IFDIR | 0777;
+        stbuf->st_nlink = 2;
+        stbuf->st_size = 4096;  // 目录通常显示为4096字节
+    } else {
+        stbuf->st_mode = S_IFREG | 0777;
+        stbuf->st_nlink = 1;
+        stbuf->st_size = it->second.data.size();
+    }
     return 0;
 }
 
@@ -72,23 +79,24 @@ static int myfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                         enum fuse_readdir_flags flags)
 #endif
 {
+    (void)offset; (void)fi;
 #ifdef _WIN32
     // Windows WinFSP 版本 - 支持FUSE_FILL_DIR_PLUS标志
     filler(buf, ".", nullptr, 0, FUSE_FILL_DIR_PLUS);
     filler(buf, "..", nullptr, 0, FUSE_FILL_DIR_PLUS);
-    for (auto &name : myfs.list_files())
+    for (auto &name : myfs.list_files_in_dir(path))
         filler(buf, name.c_str(), nullptr, 0, FUSE_FILL_DIR_PLUS);
 #elif defined(__APPLE__)
     // macOS FUSE 2.9 API - filler函数只有4个参数
     filler(buf, ".", nullptr, 0);
     filler(buf, "..", nullptr, 0);
-    for (auto &name : myfs.list_files())
+    for (auto &name : myfs.list_files_in_dir(path))
         filler(buf, name.c_str(), nullptr, 0);
 #else
     // Linux libfuse3 版本 - 支持FUSE_FILL_DIR_PLUS标志以提升性能
     filler(buf, ".", nullptr, 0, FUSE_FILL_DIR_PLUS);
     filler(buf, "..", nullptr, 0, FUSE_FILL_DIR_PLUS);
-    for (auto &name : myfs.list_files())
+    for (auto &name : myfs.list_files_in_dir(path))
         filler(buf, name.c_str(), nullptr, 0, FUSE_FILL_DIR_PLUS);
 #endif
     return 0;
@@ -223,6 +231,35 @@ static int myfs_access_fuse(const char *path, int mask) {
     return 0;
 }
 
+// 重命名/移动文件 - 跨平台处理不同平台的参数类型差异
+#ifdef _WIN32
+    // Windows使用带flags参数的rename函数
+static int myfs_rename_fuse(const char *old_path, const char *new_path, unsigned int flags) {
+    (void)flags; // flags参数暂时忽略，用于未来的原子性重命名
+    return myfs.rename(old_path, new_path);
+}
+#elif defined(__APPLE__)
+    // macOS使用传统的2参数rename函数
+static int myfs_rename_fuse(const char *old_path, const char *new_path) {
+    return myfs.rename(old_path, new_path);
+}
+#else
+    // Linux使用带flags参数的rename函数
+static int myfs_rename_fuse(const char *old_path, const char *new_path, unsigned int flags) {
+    (void)flags; // flags参数暂时忽略，用于未来的原子性重命名
+    return myfs.rename(old_path, new_path);
+}
+#endif
+
+// 创建目录 - 跨平台处理不同平台的参数类型差异
+#ifdef _WIN32
+    // Windows使用fuse_mode_t类型
+static int myfs_mkdir_fuse(const char *path, fuse_mode_t mode) {
+    (void)mode; // 忽略权限参数
+    return myfs.mkdir(path);
+}
+#endif
+
 // 文件权限修改 - 跨平台处理不同平台的参数类型差异
 #ifdef _WIN32
     // Windows使用fuse_mode_t类型，但通常不支持chmod操作
@@ -239,6 +276,12 @@ static int myfs_chown_fuse(const char *path, fuse_uid_t uid, fuse_gid_t gid, str
     return 0;
 }
 #elif defined(__APPLE__)
+    // macOS使用标准mode_t类型
+static int myfs_mkdir_fuse(const char *path, mode_t mode) {
+    (void)mode; // 忽略权限参数
+    return myfs.mkdir(path);
+}
+
     // macOS使用标准Unix类型
 static int myfs_chmod_fuse(const char *path, mode_t mode, struct fuse_file_info *fi) {
     // 简化实现：忽略权限修改，总是返回成功
@@ -252,6 +295,12 @@ static int myfs_chown_fuse(const char *path, uid_t uid, gid_t gid, struct fuse_f
     return 0;
 }
 #else
+    // Linux使用标准mode_t类型
+static int myfs_mkdir_fuse(const char *path, mode_t mode) {
+    (void)mode; // 忽略权限参数
+    return myfs.mkdir(path);
+}
+
     // Linux使用标准Unix类型
 static int myfs_chmod_fuse(const char *path, mode_t mode, struct fuse_file_info *fi) {
     // 简化实现：忽略权限修改，总是返回成功
@@ -309,9 +358,11 @@ int main(int argc, char *argv[]){
     myfs_oper.read    = myfs_read_fuse;  // 读取文件内容
     myfs_oper.write   = myfs_write_fuse; // 写入文件内容
     myfs_oper.unlink  = myfs_unlink_fuse; // 删除文件
+    myfs_oper.rename  = myfs_rename_fuse; // 重命名/移动文件
     myfs_oper.release = myfs_release_fuse; // 关闭文件
     myfs_oper.statfs  = myfs_statfs;     // 获取文件系统统计信息
     myfs_oper.create  = myfs_create_fuse; // 创建文件
+    myfs_oper.mkdir   = myfs_mkdir_fuse;  // 创建目录
     myfs_oper.chmod   = myfs_chmod_fuse;  // 修改文件权限
     myfs_oper.chown   = myfs_chown_fuse;  // 修改文件所有者
     myfs_oper.access  = myfs_access_fuse; // 检查文件访问权限
@@ -323,9 +374,11 @@ int main(int argc, char *argv[]){
     myfs_oper.read    = myfs_read_fuse;   // 读取文件内容
     myfs_oper.write   = myfs_write_fuse;  // 写入文件内容
     myfs_oper.unlink  = myfs_unlink_fuse; // 删除文件
+    myfs_oper.rename  = myfs_rename_fuse; // 重命名/移动文件
     myfs_oper.release = myfs_release_fuse; // 关闭文件
     myfs_oper.statfs  = myfs_statfs;      // 获取文件系统统计信息
     myfs_oper.create  = myfs_create_fuse; // 创建文件
+    myfs_oper.mkdir   = myfs_mkdir_fuse;  // 创建目录
     myfs_oper.chmod   = myfs_chmod_macos_adapter;  // 修改文件权限（适配函数）
     myfs_oper.chown   = myfs_chown_macos_chown_adapter;  // 修改文件所有者（适配函数）
     myfs_oper.access  = myfs_access_fuse; // 检查文件访问权限
@@ -337,9 +390,11 @@ int main(int argc, char *argv[]){
     myfs_oper.read    = myfs_read_fuse;  // 读取文件内容
     myfs_oper.write   = myfs_write_fuse; // 写入文件内容
     myfs_oper.unlink  = myfs_unlink_fuse; // 删除文件
+    myfs_oper.rename  = myfs_rename_fuse; // 重命名/移动文件
     myfs_oper.release = myfs_release_fuse; // 关闭文件
     myfs_oper.statfs  = myfs_statfs;     // 获取文件系统统计信息
     myfs_oper.create  = myfs_create_fuse; // 创建文件
+    myfs_oper.mkdir   = myfs_mkdir_fuse;  // 创建目录
     myfs_oper.chmod   = myfs_chmod_fuse;  // 修改文件权限
     myfs_oper.chown   = myfs_chown_fuse;  // 修改文件所有者
     myfs_oper.access  = myfs_access_fuse; // 检查文件访问权限

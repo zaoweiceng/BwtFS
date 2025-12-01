@@ -20,7 +20,7 @@ BwtFS 是一个基于FUSE的跨平台文件系统项目，支持三大主流操�
 
 ### Windows 开发环境
 - Windows 10 或更高版本
-- Visual Studio 2019+ 或 MinGW-w64
+- Visual Studio 2022
 - WinFSP 运行时和开发包
 - CMake 3.10 或更高版本
 
