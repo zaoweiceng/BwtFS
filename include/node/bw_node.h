@@ -226,7 +226,7 @@ namespace BwtFS::Node{
                 Binary binary_data;
                 binary_data.append(sizeof(uint8_t), reinterpret_cast<std::byte*>(&this->index));
                 binary_data.append(sizeof(uint8_t), reinterpret_cast<std::byte*>(&this->size_of_entry));
-                LOG_INFO << "size_of_entry: " << int(this->size_of_entry);
+                // LOG_INFO << "size_of_entry: " << int(this->size_of_entry);
                 Binary entry_data = m_entry_list->to_binary();
                 unsigned gap = BwtFS::BLOCK_SIZE - sizeof(uint8_t) - sizeof(uint8_t) - entry_data.size();
                 int rand = BwtFS::Util::RandNumber(std::time(nullptr), 0, gap);
@@ -239,7 +239,7 @@ namespace BwtFS::Node{
 
             Binary to_binary(uint16_t seed, uint8_t level) {
                 Binary binary_data = this->to_binary();
-                LOG_DEBUG << "seed: " << seed << ", level: " << int(level);
+                // LOG_DEBUG << "seed: " << seed << ", level: " << int(level);
                 auto seeds = BwtFS::Util::RandNumbers<uint16_t>(level, seed, 0, 1<<15);
                 // if constexpr (E::value == "RCAEncryptor") {
                 if constexpr (std::is_same<E, RCAEncryptor>::value) {

@@ -1,5 +1,5 @@
 # BwtFS 命令行工具 CMake 配置
-set(BINARY ${CMAKE_PROJECT_NAME})
+set(BINARY bwtfs)
 
 # 收集所有源文件
 file(GLOB_RECURSE CMD_SOURCES

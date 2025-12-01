@@ -329,5 +329,35 @@ bool isValidToken(const std::string& token) {
     return true;
 }
 
+OperationResult deleteFileFromBwtFS(const std::string& systemPath, const std::string& token) {
+    // 验证token格式
+    if (!isValidToken(token)) {
+        return OperationResult(false, "无效的token格式");
+    }
+
+    // 验证BwtFS文件系统
+    if (!bwtFSExists(systemPath)) {
+        return OperationResult(false, "BwtFS文件系统不存在: " + systemPath);
+    }
+
+    try {
+        UI::showProgress("正在删除文件");
+
+        // 创建黑白树对象用于删除操作（传入delete标志）
+        BwtFS::Node::bw_tree tree(token, true);
+
+        // 执行删除操作
+        tree.delete_file();
+
+        UI::showProgress("文件删除完成");
+
+        OperationResult result(true, "文件删除成功");
+        return result;
+
+    } catch (const std::exception& e) {
+        return OperationResult(false, std::string("文件删除过程中发生错误: ") + e.what());
+    }
+}
+
 } // namespace FileOps
 } // namespace BwtFS

@@ -12,8 +12,6 @@
  * - 文件系统信息查看
  *
  * @author zaoweiceng
- * @version 1.0.0
- * @date 2025-03-30
  */
 
 int main(int argc, char* argv[]) {

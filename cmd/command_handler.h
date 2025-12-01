@@ -16,6 +16,7 @@ enum class CommandType {
     CREATE_FS,      // 创建文件系统
     WRITE_FILE,     // 写入文件
     RETRIEVE_FILE,  // 获取文件
+    DELETE_FILE,    // 删除文件
     SHOW_HELP,      // 显示帮助
     SHOW_VERSION,   // 显示版本
     SHOW_INFO,      // 显示信息
@@ -93,6 +94,14 @@ public:
     int runRetrieveFileMode(const std::string& systemPath, const std::string& token, const std::string& outputPath = "");
 
     /**
+     * @brief 运行文件删除模式
+     * @param systemPath 文件系统路径
+     * @param token 文件访问令牌
+     * @return 执行结果（0成功，非0失败）
+     */
+    int runDeleteFileMode(const std::string& systemPath, const std::string& token);
+
+    /**
      * @brief 显示帮助信息
      */
     void showHelp();
@@ -153,6 +162,14 @@ private:
      * @return 执行结果
      */
     FileOps::OperationResult handleRetrieveFile(const std::string& systemPath, const std::string& token, const std::string& outputPath = "");
+
+    /**
+     * @brief 处理文件删除
+     * @param systemPath 文件系统路径
+     * @param token 文件访问令牌
+     * @return 执行结果
+     */
+    FileOps::OperationResult handleDeleteFile(const std::string& systemPath, const std::string& token);
 
     /**
      * @brief 处理错误情况

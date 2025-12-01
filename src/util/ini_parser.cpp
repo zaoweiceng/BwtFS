@@ -14,7 +14,7 @@ void trim(std::string& str) {
 }
 
 void BwtFS::Config::init() {
-    LOG_INFO << "Config path: " << config_path;
+    // LOG_INFO << "Config path: " << config_path;
     config_path = fs::path(BwtFS::DefaultConfig::CONFIG_PATH).make_preferred().string();
     
     if (config_path.empty()) {
@@ -32,7 +32,7 @@ void BwtFS::Config::init() {
 
 bool BwtFS::Config::load() {
     // 如果配置文件不存在，则创建默认配置
-    LOG_INFO << "Loading config file: " << config_path;
+    // LOG_INFO << "Loading config file: " << config_path;
     if (!fs::exists(config_path) || config_path.empty()) {
         LOG_WARNING << "Config file does not exist.";
         LOG_WARNING << "Using default config file.";

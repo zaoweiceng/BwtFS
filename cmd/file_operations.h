@@ -136,6 +136,14 @@ OperationResult retrieveFileFromBwtFS(const std::string& systemPath, const std::
  */
 bool isValidToken(const std::string& token);
 
+/**
+ * @brief 从BwtFS文件系统删除文件
+ * @param systemPath BwtFS文件系统路径
+ * @param token 文件访问令牌
+ * @return 操作结果
+ */
+OperationResult deleteFileFromBwtFS(const std::string& systemPath, const std::string& token);
+
 } // namespace FileOps
 } // namespace BwtFS
 

@@ -5,6 +5,9 @@
 #include <fstream>
 #include <limits>
 #include <sstream>
+#include "util/log.h"
+
+using BwtFS::Util::Logger;
 
 #ifdef _WIN32
 #include <windows.h>
@@ -140,31 +143,23 @@ size_t promptFileSystemSize(size_t defaultSizeMB, const std::string& prompt) {
 }
 
 void showSuccess(const std::string& operation, const std::string& detail) {
-    std::cout << "\n✓ " << operation;
-    if (!detail.empty()) {
-        std::cout << ": " << detail;
-    }
-    std::cout << "\n";
+    LOG_INFO << operation << (detail.empty() ? "" : ": " + detail);
 }
 
 void showError(const std::string& operation, const std::string& detail) {
-    std::cout << "\n✗ " << operation;
-    if (!detail.empty()) {
-        std::cout << ": " << detail;
-    }
-    std::cout << "\n";
+    LOG_ERROR << operation << (detail.empty() ? "" : ": " + detail);
 }
 
 void showWarning(const std::string& message) {
-    std::cout << "\n⚠ 警告: " << message << "\n";
+    LOG_WARNING << message;
 }
 
 void showInfo(const std::string& message) {
-    std::cout << "\nℹ 信息: " << message << "\n";
+    LOG_INFO << message;
 }
 
 void showProgress(const std::string& message) {
-    std::cout << "→ " << message << "...\n";
+    LOG_INFO << message;
 }
 
 bool confirm(const std::string& message) {
@@ -181,8 +176,8 @@ void pause() {
     system("pause");
 #else
     std::cout << "\n按回车键继续...";
-    std::cin.clear();
-    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    // std::cin.clear();
+    // std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
     std::cin.get();
 #endif
 }

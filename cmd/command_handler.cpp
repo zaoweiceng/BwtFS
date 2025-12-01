@@ -59,14 +59,19 @@ CommandArgs CommandHandler::parseArguments(int argc, char* argv[]) {
             std::string firstArg = args.arguments[0];
             std::string secondArg = args.arguments[1];
 
-            if (FileOps::isValidToken(secondArg)) {
+            if (firstArg == "delete") {
+                args.type = CommandType::DELETE_FILE;
+            } else if (FileOps::isValidToken(secondArg)) {
                 args.type = CommandType::RETRIEVE_FILE;
             } else {
                 args.type = CommandType::WRITE_FILE;
             }
         } else if (args.arguments.size() == 3) {
-            // Could be retrieve with output file path: system_path token output_path
-            if (FileOps::isValidToken(args.arguments[1])) {
+            // Could be delete command: delete system_path token
+            // or retrieve with output file path: system_path token output_path
+            if (args.arguments[0] == "delete" && FileOps::isValidToken(args.arguments[2])) {
+                args.type = CommandType::DELETE_FILE;
+            } else if (FileOps::isValidToken(args.arguments[1])) {
                 args.type = CommandType::RETRIEVE_FILE;
             }
         }
@@ -126,6 +131,16 @@ int CommandHandler::executeCommand(const CommandArgs& args) {
                     return 1;
                 }
 
+            case CommandType::DELETE_FILE:
+                if (args.arguments.size() >= 2) {
+                    std::string systemPath = (args.arguments[0] == "delete") ? args.arguments[1] : args.arguments[0];
+                    std::string token = (args.arguments[0] == "delete") ? args.arguments[2] : args.arguments[1];
+                    return runDeleteFileMode(systemPath, token);
+                } else {
+                    UI::showError("参数错误", "文件删除模式需要文件系统路径和token");
+                    return 1;
+                }
+
             default:
                 UI::showError("未知命令", "无法识别的命令类型");
                 showHelp();
@@ -147,11 +162,12 @@ int CommandHandler::runInteractiveMode() {
         std::cout << "1. 写入文件到文件系统\n";
         std::cout << "2. 创建新的文件系统\n";
         std::cout << "3. 使用令牌获取文件\n";
-        std::cout << "4. 显示文件系统信息\n";
-        std::cout << "5. 退出程序\n";
+        std::cout << "4. 使用令牌删除文件\n";
+        std::cout << "5. 显示文件系统信息\n";
+        std::cout << "6. 退出程序\n";
         UI::showSeparator();
 
-        std::cout << "请输入选项 (1-5): ";
+        std::cout << "请输入选项 (1-6): ";
         std::string choice;
         std::getline(std::cin, choice);
 
@@ -196,13 +212,28 @@ int CommandHandler::runInteractiveMode() {
             runRetrieveFileMode(systemPath, token, outputPath);
 
         } else if (choice == "4") {
+            // 使用令牌删除文件
+            std::string systemPath = UI::promptFileSystemPath();
+            if (systemPath.empty()) continue;
+
+            if (!FileOps::bwtFSExists(systemPath)) {
+                UI::showError("文件系统错误", "指定的BwtFS文件系统不存在");
+                continue;
+            }
+
+            std::string token = UI::promptToken();
+            if (token.empty()) continue;
+
+            runDeleteFileMode(systemPath, token);
+
+        } else if (choice == "5") {
             // 显示文件系统信息
             std::string systemPath = UI::promptFileSystemPath();
             if (!systemPath.empty()) {
                 showBwtFSInfo(systemPath);
             }
 
-        } else if (choice == "5") {
+        } else if (choice == "6") {
             // 退出
             UI::showInfo("感谢使用BwtFS文件系统");
             break;
@@ -348,6 +379,49 @@ int CommandHandler::runRetrieveFileMode(const std::string& systemPath, const std
     return 0;
 }
 
+int CommandHandler::runDeleteFileMode(const std::string& systemPath, const std::string& token) {
+    // 确定文件系统路径
+    std::string fsPath;
+
+    if (UI::isValidBwtFSPath(systemPath)) {
+        fsPath = systemPath;
+    } else {
+        UI::showError("参数错误", "无效的BwtFS文件系统路径: " + systemPath);
+        return 1;
+    }
+
+    // 验证文件系统
+    if (!FileOps::bwtFSExists(fsPath)) {
+        UI::showError("文件系统错误", "BwtFS文件系统不存在: " + fsPath);
+        return 1;
+    }
+
+    // 验证token
+    if (!FileOps::isValidToken(token)) {
+        UI::showError("Token错误", "无效的访问令牌格式");
+        return 1;
+    }
+
+    UI::showInfo("正在从文件系统删除文件: " + fsPath);
+    UI::showInfo("使用访问令牌: " + token.substr(0, 10) + "...");
+
+    // 确认删除操作
+    if (!UI::confirm("确定要删除此文件吗？此操作不可撤销。")) {
+        UI::showInfo("删除操作已取消");
+        return 0;
+    }
+
+    // 删除文件
+    auto result = handleDeleteFile(fsPath, token);
+    if (result.success) {
+        UI::showSuccess("文件删除成功", "文件已被从文件系统中删除");
+    } else {
+        return handleError("删除文件", result);
+    }
+
+    return 0;
+}
+
 void CommandHandler::showHelp() {
     UI::showHelp();
 }
@@ -447,6 +521,10 @@ FileOps::OperationResult CommandHandler::handleRetrieveFile(const std::string& s
     }
 
     return result;
+}
+
+FileOps::OperationResult CommandHandler::handleDeleteFile(const std::string& systemPath, const std::string& token) {
+    return FileOps::deleteFileFromBwtFS(systemPath, token);
 }
 
 int CommandHandler::handleError(const std::string& operation, const FileOps::OperationResult& result) {
