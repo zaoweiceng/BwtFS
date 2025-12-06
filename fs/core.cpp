@@ -2,7 +2,7 @@
 #include <cstring>
 #include <iostream>
 
-int MyFS::open(const std::string& path){
+int MemoryFS::open(const std::string& path){
     if (files_.find(path) == files_.end()) {
         // 如果文件不存在，则创建为普通文件（保持向后兼容）
         files_[path] = File{path, {}, false};
@@ -13,7 +13,7 @@ int MyFS::open(const std::string& path){
     return fd;
 }
 
-int MyFS::create(const std::string& path) {
+int MemoryFS::create(const std::string& path) {
     // 如果文件不存在，则创建一个空文件
     if (files_.find(path) == files_.end()) {
         files_[path] = File{path, {}, false};  // 普通文件
@@ -25,7 +25,7 @@ int MyFS::create(const std::string& path) {
 }
 
 
-int MyFS::read(int fd, char* buf, size_t size){
+int MemoryFS::read(int fd, char* buf, size_t size){
     auto it = fd_map_.find(fd);
     if (it == fd_map_.end()) return -1;
     auto& f = files_[it->second];
@@ -36,7 +36,7 @@ int MyFS::read(int fd, char* buf, size_t size){
     return size;
 }
 
-int MyFS::read(int fd, char* buf, size_t size, off_t offset) {
+int MemoryFS::read(int fd, char* buf, size_t size, off_t offset) {
     auto it = fd_map_.find(fd);
     if (it == fd_map_.end()) return -1;
     auto& f = files_[it->second];
@@ -52,7 +52,7 @@ int MyFS::read(int fd, char* buf, size_t size, off_t offset) {
 }
 
 
-int MyFS::write(int fd, const char* buf, size_t size){
+int MemoryFS::write(int fd, const char* buf, size_t size){
     auto it = fd_map_.find(fd);
     if (it == fd_map_.end()) return -1;
     auto& f = files_[it->second];
@@ -62,7 +62,7 @@ int MyFS::write(int fd, const char* buf, size_t size){
     return size;
 }
 
-int MyFS::write(int fd, const char* buf, size_t size, off_t offset) {
+int MemoryFS::write(int fd, const char* buf, size_t size, off_t offset) {
     auto it = fd_map_.find(fd);
     if (it == fd_map_.end()) return -1;
     auto& f = files_[it->second];
@@ -78,17 +78,17 @@ int MyFS::write(int fd, const char* buf, size_t size, off_t offset) {
 }
 
 
-int MyFS::remove(const std::string& path){
+int MemoryFS::remove(const std::string& path){
     std::cout << "[unlink] " << path << std::endl;
     return files_.erase(path) ? 0 : -1;
 }
 
-int MyFS::close(int fd){
+int MemoryFS::close(int fd){
     std::cout << "[close] fd=" << fd << std::endl;
     return fd_map_.erase(fd) ? 0 : -1;
 }
 
-int MyFS::mkdir(const std::string& path) {
+int MemoryFS::mkdir(const std::string& path) {
     // 如果目录不存在，则创建一个空目录
     if (files_.find(path) == files_.end()) {
         files_[path] = File{path, {}, true};   // 目录
@@ -99,7 +99,7 @@ int MyFS::mkdir(const std::string& path) {
     return files_[path].is_directory ? 0 : -1;
 }
 
-int MyFS::rename(const std::string& old_path, const std::string& new_path) {
+int MemoryFS::rename(const std::string& old_path, const std::string& new_path) {
     std::cout << "[rename] starting: " << old_path << " -> " << new_path << std::endl;
 
     auto it = files_.find(old_path);
@@ -144,19 +144,19 @@ int MyFS::rename(const std::string& old_path, const std::string& new_path) {
     return 0;
 }
 
-bool MyFS::is_directory(const std::string& path) {
+bool MemoryFS::is_directory(const std::string& path) {
     auto it = files_.find(path);
     return it != files_.end() && it->second.is_directory;
 }
 
-std::vector<std::string> MyFS::list_files(){
+std::vector<std::string> MemoryFS::list_files(){
     std::vector<std::string> res;
     for (auto& [name, _] : files_)
         res.push_back(name.substr(1)); // 去掉 '/'
     return res;
 }
 
-std::vector<std::string> MyFS::list_files_in_dir(const std::string& dir_path) {
+std::vector<std::string> MemoryFS::list_files_in_dir(const std::string& dir_path) {
     std::vector<std::string> res;
     std::string normalized_dir = normalize_path(dir_path);
 
@@ -177,7 +177,7 @@ std::vector<std::string> MyFS::list_files_in_dir(const std::string& dir_path) {
     return res;
 }
 
-std::string MyFS::normalize_path(const std::string& path) {
+std::string MemoryFS::normalize_path(const std::string& path) {
     if (path.empty()) return "/";
     if (path != "/" && path.back() == '/') {
         return path.substr(0, path.length() - 1);
@@ -185,7 +185,7 @@ std::string MyFS::normalize_path(const std::string& path) {
     return path;
 }
 
-std::string MyFS::get_parent_dir(const std::string& path) {
+std::string MemoryFS::get_parent_dir(const std::string& path) {
     std::string normalized = normalize_path(path);
 
     if (normalized == "/") return "/";
@@ -197,7 +197,7 @@ std::string MyFS::get_parent_dir(const std::string& path) {
     return normalized.substr(0, last_slash);
 }
 
-std::string MyFS::get_basename(const std::string& path) {
+std::string MemoryFS::get_basename(const std::string& path) {
     std::string normalized = normalize_path(path);
 
     if (normalized == "/") return "";
@@ -208,7 +208,7 @@ std::string MyFS::get_basename(const std::string& path) {
     return normalized.substr(last_slash + 1);
 }
 
-void MyFS::remove_recursive(const std::string& path) {
+void MemoryFS::remove_recursive(const std::string& path) {
     std::cout << "[remove_recursive] removing: " << path << std::endl;
 
     // 找到所有以path为前缀的文件和目录
@@ -232,7 +232,7 @@ void MyFS::remove_recursive(const std::string& path) {
     }
 }
 
-void MyFS::move_recursive(const std::string& old_path, const std::string& new_path) {
+void MemoryFS::move_recursive(const std::string& old_path, const std::string& new_path) {
     std::cout << "[move_recursive] moving: " << old_path << " -> " << new_path << std::endl;
 
     // 收集所有需要移动的文件
