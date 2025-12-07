@@ -34,7 +34,7 @@ target_compile_options(${BINARY} PRIVATE
 )
 
 # 设置C++标准
-set_property(TARGET ${BINARY} PROPERTY CXX_STANDARD 17)
+set_property(TARGET ${BINARY} PROPERTY CXX_STANDARD 20)
 set_property(TARGET ${BINARY} PROPERTY CXX_STANDARD_REQUIRED ON)
 
 # 添加包含目录

@@ -174,7 +174,7 @@ size_t BwtFS::System::Bitmap::getSystemUsedSize() const {
 }
 
 void BwtFS::System::Bitmap::init_bpm(){
-    LOG_DEBUG << "Initializing bpm...";
+    // LOG_DEBUG << "Initializing bpm...";
     for (size_t i = 0; i < this->size-1; i++) {
         auto byte = (uint8_t)this->bitmap.get(i);
         for (size_t j = 0; j < 8; j++) {

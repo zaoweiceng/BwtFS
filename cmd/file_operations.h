@@ -6,145 +6,45 @@
 #include <functional>
 
 namespace BwtFS {
-namespace FileOps {
+    namespace FileOps {
+    struct OperationResult {
+        bool success;
+        std::string message;
+        std::string token;  // 用于文件写入操作
+        size_t bytesProcessed = 0;
 
-/**
- * @brief 文件操作结果结构
- */
-struct OperationResult {
-    bool success;
-    std::string message;
-    std::string token;  // 用于文件写入操作
-    size_t bytesProcessed = 0;
+        OperationResult(bool s = false, const std::string& msg = "")
+            : success(s), message(msg) {}
+    };
+    OperationResult writeFileToBwtFS(const std::string& systemPath, const std::string& filePath);
+    OperationResult createBwtFS(const std::string& systemPath, size_t sizeMB);
+    bool fileExists(const std::string& filePath);
+    bool bwtFSExists(const std::string& systemPath);
+    size_t getFileSize(const std::string& filePath);
+    bool isFileReadable(const std::string& filePath);
+    bool isValidBwtFSFile(const std::string& path);
+    using ProgressCallback = std::function<void(size_t bytesWritten, size_t totalBytes)>;
+    OperationResult writeFileToBwtFSWithProgress(
+        const std::string& systemPath,
+        const std::string& filePath,
+        ProgressCallback progressCallback = nullptr
+    );
+    struct BwtFSInfo {
+        size_t totalSize = 0;
+        size_t usedSize = 0;
+        size_t freeSize = 0;
+        size_t blockSize = 0;
+        std::string createTime;
+        std::string modifyTime;
+        bool isValid = false;
+    };
+    BwtFSInfo getBwtFSInfo(const std::string& systemPath);
+    OperationResult retrieveFileFromBwtFS(const std::string& systemPath, const std::string& token, const std::string& outputPath);
+    OperationResult retrieveFileFromBwtFS(const std::string& systemPath, const std::string& token);
+    bool isValidToken(const std::string& token);
+    OperationResult deleteFileFromBwtFS(const std::string& systemPath, const std::string& token);
 
-    OperationResult(bool s = false, const std::string& msg = "")
-        : success(s), message(msg) {}
-};
-
-/**
- * @brief 写入文件到BwtFS文件系统
- * @param systemPath BwtFS文件系统路径
- * @param filePath 要写入的文件路径
- * @return 操作结果
- */
-OperationResult writeFileToBwtFS(const std::string& systemPath, const std::string& filePath);
-
-/**
- * @brief 创建新的BwtFS文件系统
- * @param systemPath 文件系统路径
- * @param sizeMB 文件系统大小（MB）
- * @return 操作结果
- */
-OperationResult createBwtFS(const std::string& systemPath, size_t sizeMB);
-
-/**
- * @brief 检查文件是否存在
- * @param filePath 文件路径
- * @return 文件是否存在
- */
-bool fileExists(const std::string& filePath);
-
-/**
- * @brief 检查BwtFS文件系统是否存在
- * @param systemPath 文件系统路径
- * @return 文件系统是否存在
- */
-bool bwtFSExists(const std::string& systemPath);
-
-/**
- * @brief 获取文件大小
- * @param filePath 文件路径
- * @return 文件大小（字节），失败返回0
- */
-size_t getFileSize(const std::string& filePath);
-
-/**
- * @brief 验证文件是否可读
- * @param filePath 文件路径
- * @return 文件是否可读
- */
-bool isFileReadable(const std::string& filePath);
-
-/**
- * @brief 验证路径是否为有效的BwtFS文件
- * @param path 路径
- * @return 是否为有效的BwtFS文件
- */
-bool isValidBwtFSFile(const std::string& path);
-
-/**
- * @brief 显示文件写入进度（回调函数类型）
- * @param bytesWritten 已写入字节数
- * @param totalBytes 总字节数
- */
-using ProgressCallback = std::function<void(size_t bytesWritten, size_t totalBytes)>;
-
-/**
- * @brief 带进度回调的文件写入操作
- * @param systemPath BwtFS文件系统路径
- * @param filePath 要写入的文件路径
- * @param progressCallback 进度回调函数
- * @return 操作结果
- */
-OperationResult writeFileToBwtFSWithProgress(
-    const std::string& systemPath,
-    const std::string& filePath,
-    ProgressCallback progressCallback = nullptr
-);
-
-/**
- * @brief 获取BwtFS文件系统信息
- */
-struct BwtFSInfo {
-    size_t totalSize = 0;
-    size_t usedSize = 0;
-    size_t freeSize = 0;
-    size_t blockSize = 0;
-    std::string createTime;
-    std::string modifyTime;
-    bool isValid = false;
-};
-
-/**
- * @brief 获取BwtFS文件系统信息
- * @param systemPath 文件系统路径
- * @return 文件系统信息
- */
-BwtFSInfo getBwtFSInfo(const std::string& systemPath);
-
-/**
- * @brief 从BwtFS文件系统使用token获取文件
- * @param systemPath BwtFS文件系统路径
- * @param token 文件访问令牌
- * @param outputPath 输出文件路径
- * @return 操作结果
- */
-OperationResult retrieveFileFromBwtFS(const std::string& systemPath, const std::string& token, const std::string& outputPath);
-
-/**
- * @brief 从BwtFS文件系统使用token获取文件并输出到标准输出
- * @param systemPath BwtFS文件系统路径
- * @param token 文件访问令牌
- * @return 操作结果
- */
-OperationResult retrieveFileFromBwtFS(const std::string& systemPath, const std::string& token);
-
-/**
- * @brief 验证token格式是否有效
- * @param token 要验证的token
- * @return token是否有效
- */
-bool isValidToken(const std::string& token);
-
-/**
- * @brief 从BwtFS文件系统删除文件
- * @param systemPath BwtFS文件系统路径
- * @param token 文件访问令牌
- * @return 操作结果
- */
-OperationResult deleteFileFromBwtFS(const std::string& systemPath, const std::string& token);
-
-} // namespace FileOps
+    } // namespace FileOps
 } // namespace BwtFS
 
 #endif // FILE_OPERATIONS_H

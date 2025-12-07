@@ -15,6 +15,9 @@ struct SystemInfo{
     size_t file_size;
     size_t block_size;
     size_t block_count;
+    size_t used_size;
+    size_t total_size;
+    size_t free_size;
     unsigned long long create_time;
     unsigned long long modify_time;
 };
@@ -27,17 +30,21 @@ class SystemManager{
         std::shared_ptr<BwtFS::System::FileSystem> filesystem_;
 
     public:
-        SystemManager(std::string system_path, std::string dir_path){
+        SystemManager(std::string system_path){
             if(!fileExists(system_path)){
                 LOG_ERROR << "BwtFS system file does not exist: " << system_path;
                 throw std::runtime_error("BwtFS system file does not exist: " + system_path);
             }
-            if (!fileExists(dir_path)){
-                LOG_ERROR << "Directory path does not exist: " << dir_path;
-                throw std::runtime_error("Directory path does not exist: " + dir_path);
-            }
             filesystem_ = BwtFS::System::openBwtFS(system_path);
 
+        }
+        SystemManager(){}
+        void init(std::string system_path){
+            if(!fileExists(system_path)){
+                LOG_ERROR << "BwtFS system file does not exist: " << system_path;
+                throw std::runtime_error("BwtFS system file does not exist: " + system_path);
+            }
+            filesystem_ = BwtFS::System::openBwtFS(system_path);
         }
         ~SystemManager(){
             filesystem_->~FileSystem();
@@ -48,6 +55,9 @@ class SystemManager{
             info.file_size = filesystem_->getFileSize();
             info.block_size = filesystem_->getBlockSize();
             info.block_count = filesystem_->getBlockCount();
+            info.used_size = filesystem_->getFilesSize() - filesystem_->getFreeSize();
+            info.total_size = filesystem_->getFileSize();
+            info.free_size = filesystem_->getFreeSize();
             info.create_time = filesystem_->getCreateTime();
             info.modify_time = filesystem_->getModifyTime();
             return info;
@@ -319,11 +329,12 @@ class SystemManager{
 struct FileNode {
     std::string name;
     bool is_dir;
+    size_t file_size;    // 仅文件有值
     std::string token;  // 仅文件有值
     json* node_ptr;     // 指向原始JSON节点的指针（用于惰性解析）
     
-    FileNode(const std::string& n = "", bool d = false, const std::string& t = "", json* ptr = nullptr)
-        : name(n), is_dir(d), token(t), node_ptr(ptr) {}
+    FileNode(const std::string& n = "", bool d = false, const std::string& t = "", size_t file_size = 0, json* ptr = nullptr)
+        : name(n), is_dir(d), file_size(file_size), token(t), node_ptr(ptr) {}
 };
 
 // 文件目录管理类
@@ -502,7 +513,9 @@ public:
             if (it.value().contains("is_dir")) {
                 bool is_dir = it.value()["is_dir"];
                 std::string token = is_dir ? "" : it.value()["token"];
-                result.emplace_back(name, is_dir, token, &it.value());
+                // result.emplace_back(name, is_dir, token, &it.value());
+                size_t file_size = is_dir ? 0 : (it.value().contains("file_size") ? it.value()["file_size"].get<size_t>() : 0);
+                result.emplace_back(name, is_dir, token, file_size, &it.value());
             }
         }
         
@@ -525,7 +538,8 @@ public:
         }
         
         std::string token = node.contains("token") ? node["token"] : "";
-        return FileNode(name, false, token, &node);
+        size_t file_size = node.contains("file_size") ? node["file_size"].get<size_t>() : 0;
+        return FileNode(name, false, token, file_size, &node);
     }
     
     // 创建目录
@@ -556,7 +570,7 @@ public:
     }
     
     // 添加文件
-    bool addFile(const std::string& path, const std::string& token = "") {
+    bool addFile(const std::string& path, const std::string& token = "", size_t file_size = 0) {
         auto [parent, name] = getParentAndName(path);
         
         if (!parent || name.empty()) {
@@ -573,6 +587,7 @@ public:
         json new_file;
         new_file["is_dir"] = false;
         new_file["token"] = token;
+        new_file["file_size"] = file_size;
         if (splitPath(path).size() == 1){
             (*parent)[name] = new_file;
         }else{
@@ -670,6 +685,15 @@ public:
         return true;
     }
     
+    std::string getFileToken(const std::string& path) {
+        auto file_node = getFile(path);
+        if (file_node.name.empty() || file_node.is_dir) {
+            LOG_ERROR << "文件不存在: " << path;
+            return "";
+        }
+        return file_node.token;
+    }
+
     // 显示当前目录结构（用于调试）
     void printStructure(const std::string& prefix = "", json* node = nullptr) {
         if (!node) node = &root_json;
@@ -693,65 +717,65 @@ public:
 };
 
 // 测试函数
-void testFileManager() {
-    FileManager fm;
+// void testFileManager() {
+    // FileManager fm;
     
-    std::cout << "=== 测试1: 创建示例JSON结构 ===" << std::endl;
+    // std::cout << "=== 测试1: 创建示例JSON结构 ===" << std::endl;
     
-    // 创建目录结构
-    fm.createDir("/dir1");
-    fm.addFile("/dir1/file1.txt", "test1");
-    fm.createDir("/dir1/subdir1");
-    fm.addFile("/file2.txt", "test2");
+    // // 创建目录结构
+    // fm.createDir("/dir1");
+    // fm.addFile("/dir1/file1.txt", "test1");
+    // fm.createDir("/dir1/subdir1");
+    // fm.addFile("/file2.txt", "test2");
     
-    // 列出目录
-    std::cout << "\n=== 测试2: 列出目录 ===" << std::endl;
-    auto dir1_contents = fm.listDir("/dir1");
-    for (const auto& node : dir1_contents) {
-        std::cout << "名称: " << node.name 
-                  << ", 类型: " << (node.is_dir ? "目录" : "文件") 
-                  << (node.is_dir ? "" : ", token: " + node.token) 
-                  << std::endl;
-    }
+    // // 列出目录
+    // std::cout << "\n=== 测试2: 列出目录 ===" << std::endl;
+    // auto dir1_contents = fm.listDir("/dir1");
+    // for (const auto& node : dir1_contents) {
+    //     std::cout << "名称: " << node.name 
+    //               << ", 类型: " << (node.is_dir ? "目录" : "文件") 
+    //               << (node.is_dir ? "" : ", token: " + node.token) 
+    //               << std::endl;
+    // }
     
-    // 获取文件信息
-    std::cout << "\n=== 测试3: 获取文件信息 ===" << std::endl;
-    FileNode file2 = fm.getFile("/file2.txt");
-    if (!file2.name.empty()) {
-        std::cout << "文件: " << file2.name << ", token: " << file2.token << std::endl;
-    }
+    // // 获取文件信息
+    // std::cout << "\n=== 测试3: 获取文件信息 ===" << std::endl;
+    // FileNode file2 = fm.getFile("/file2.txt");
+    // if (!file2.name.empty()) {
+    //     std::cout << "文件: " << file2.name << ", token: " << file2.token << std::endl;
+    // }
     
-    // 添加更多文件和目录
-    std::cout << "\n=== 测试4: 添加更多内容 ===" << std::endl;
-    fm.addFile("/dir1/file3.txt", "test3");
-    fm.createDir("/dir1/subdir2");
-    fm.addFile("/dir1/subdir2/nested.txt", "nested_token");
+//    // 添加更多文件和目录
+//     std::cout << "\n=== 测试4: 添加更多内容 ===" << std::endl;
+//     fm.addFile("/dir1/file3.txt", "test3");
+//     fm.createDir("/dir1/subdir2");
+//     fm.addFile("/dir1/subdir2/nested.txt", "nested_token");
     
-    // 重命名测试
-    std::cout << "\n=== 测试5: 重命名 ===" << std::endl;
-    fm.rename("/dir1/file3.txt", "renamed_file.txt");
+//     // 重命名测试
+//     std::cout << "\n=== 测试5: 重命名 ===" << std::endl;
+//     fm.rename("/dir1/file3.txt", "renamed_file.txt");
     
-    // 移动测试
-    std::cout << "\n=== 测试6: 移动文件 ===" << std::endl;
-    fm.move("/file2.txt", "/dir1");
+//     // 移动测试
+//     std::cout << "\n=== 测试6: 移动文件 ===" << std::endl;
+//     fm.move("/file2.txt", "/dir1");
     
-    // 删除测试
-    std::cout << "\n=== 测试7: 删除文件 ===" << std::endl;
-    fm.remove("/dir1/renamed_file.txt");
+//     // 删除测试
+//     std::cout << "\n=== 测试7: 删除文件 ===" << std::endl;
+//     fm.remove("/dir1/renamed_file.txt");
     
-    // 显示最终结构
-    std::cout << "\n=== 最终目录结构 ===" << std::endl;
-    fm.printStructure();
+//     // 显示最终结构
+//     std::cout << "\n=== 最终目录结构 ===" << std::endl;
+//     fm.printStructure();
     
-    // 保存到文件
-    std::cout << "\n=== 保存到文件 ===" << std::endl;
-    fm.saveToFile("filesystem.json");
+//     // 保存到文件
+//     std::cout << "\n=== 保存到文件 ===" << std::endl;
+//     fm.saveToFile("filesystem.json");
     
-    // 从文件加载
-    std::cout << "\n=== 从文件加载 ===" << std::endl;
-    FileManager fm2;
-    if (fm2.loadFromFile("filesystem.json")) {
-        std::cout << "加载后的目录结构:" << std::endl;
-        fm2.printStructure();
-    }
-}
+//     // 从文件加载
+//     std::cout << "\n=== 从文件加载 ===" << std::endl;
+//     FileManager fm2;
+//     if (fm2.loadFromFile("filesystem.json")) {
+//         std::cout << "加载后的目录结构:" << std::endl;
+//         fm2.printStructure();
+//     }
+// }

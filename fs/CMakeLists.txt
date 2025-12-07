@@ -1,11 +1,10 @@
 # 跨平台FUSE文件系统构建配置
 # 支持 Windows (WinFSP)、macOS (macFUSE) 和 Linux (libfuse3)
-
 cmake_minimum_required(VERSION 3.10)
-set(BINARY bwtfs_mount)
-# 设置C++标准为C++20，支持现代C++特性
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(BINARY bwtfs_mount)
+
 # 源文件列表（所有平台共享）
 set(SOURCES
     core.cpp

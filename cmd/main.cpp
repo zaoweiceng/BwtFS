@@ -2,18 +2,6 @@
 #include "ui_helper.h"
 #include <iostream>
 
-/**
- * @brief BwtFS 隐私保护文件系统 - 命令行工具
- *
- * 这个程序是 BwtFS 文件系统的命令行接口，提供以下功能：
- * - 创建新的 BwtFS 文件系统
- * - 将文件写入 BwtFS 文件系统
- * - 交互式操作界面
- * - 文件系统信息查看
- *
- * @author zaoweiceng
- */
-
 int main(int argc, char* argv[]) {
     try {
         // 创建命令处理器

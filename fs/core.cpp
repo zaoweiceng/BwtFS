@@ -2,6 +2,8 @@
 #include <cstring>
 #include <iostream>
 
+using BwtFS::Util::Logger;
+
 int MemoryFS::open(const std::string& path){
     if (files_.find(path) == files_.end()) {
         // 如果文件不存在，则创建为普通文件（保持向后兼容）
@@ -9,7 +11,8 @@ int MemoryFS::open(const std::string& path){
     }
     int fd = next_fd_++;
     fd_map_[fd] = path;
-    std::cout << "[open] " << path << " -> fd=" << fd << std::endl;
+    // std::cout << "[open] " << path << " -> fd=" << fd << std::endl;
+    LOG_DEBUG << "[open] " << path << " -> fd=" << fd;
     return fd;
 }
 
@@ -266,3 +269,258 @@ void MemoryFS::move_recursive(const std::string& old_path, const std::string& ne
         std::cout << "[move_recursive] moved: " << old_file_path << " -> " << new_file_path << std::endl;
     }
 }
+
+int BwtFSMounter::open(const std::string& path){
+    if (path_fd_map_.find(path) != path_fd_map_.end()) {
+        // 文件已经打开，返回已有的文件描述符
+        int existing_fd = path_fd_map_[path];
+        LOG_DEBUG << "[open] " << path << " already opened -> fd=" << existing_fd;
+        return existing_fd;
+    }
+    // 创建新的 bw_tree 对象并存储
+    std::string file_token = file_manager_.getFileToken(path);
+    if (file_token.empty() || file_token == "") {
+        LOG_ERROR << "文件不存在: " << path;
+        return -1;
+    }
+    BwtFS::Node::bw_tree* tree = new BwtFS::Node::bw_tree(file_token, false);
+    int fd = next_fd_++;
+    fd_map_[fd] = path;
+    path_fd_map_[path] = fd;
+    fd_tree_map_[fd] = tree;
+    LOG_DEBUG << "[open] " << path << " -> fd=" << fd;
+    return fd;
+}
+
+int BwtFSMounter::create(const std::string& path) {
+    // 创建文件
+    int fd = next_fd_++;
+    fd_map_[fd] = path;
+    path_fd_map_[path] = fd;
+    // 在文件管理器中添加文件
+    fd_write_wait_map_[fd] = new BwtFS::Node::bw_tree(); // 创建一个空的 bw_tree 对象用于写入
+    fd_file_size_map_[fd] = 0; // 初始化文件大小为0
+    LOG_DEBUG << "[create] " << path;
+    return 0;
+}
+
+int BwtFSMounter::read(int fd, char* buf, size_t size){
+    auto it = fd_map_.find(fd);
+    if (it == fd_map_.end()) return -1;
+    auto tree_it = fd_tree_map_.find(fd);
+    if (tree_it == fd_tree_map_.end()) return -1;
+    BwtFS::Node::bw_tree* tree = tree_it->second;
+    // tree->read
+    // Binary read(size_t index, size_t size)
+    Binary data = tree->read(0, size); // 从偏移0开始读取
+    size_t bytes_read = std::min(size, data.size());
+    memcpy(buf, data.data(), bytes_read);
+    LOG_DEBUG << "[read] fd=" << fd << " size=" << bytes_read;
+    return bytes_read;
+}
+
+int BwtFSMounter::read(int fd, char* buf, size_t size, off_t offset) {
+    auto it = fd_map_.find(fd);
+    if (it == fd_map_.end()) return -1;
+    auto tree_it = fd_tree_map_.find(fd);
+    if (tree_it == fd_tree_map_.end()) return -1;
+    BwtFS::Node::bw_tree* tree = tree_it->second;
+    // tree->read
+    // Binary read(size_t index, size_t size)
+    Binary data = tree->read(offset, size); // 从指定偏移开始读取
+    size_t bytes_read = std::min(size, data.size());
+    memcpy(buf, data.data(), bytes_read);
+    LOG_DEBUG << "[read] fd=" << fd << " offset=" << offset << " size=" << bytes_read;
+    return bytes_read;
+}
+
+int BwtFSMounter::write(int fd, const char* buf, size_t size){
+    auto it = fd_map_.find(fd);
+    if (it == fd_map_.end()) return -1;
+    auto tree_it = fd_write_wait_map_.find(fd);
+    if (tree_it == fd_write_wait_map_.end()) return -1;
+    BwtFS::Node::bw_tree* tree = tree_it->second;
+    // tree->write
+    tree->write(const_cast<char*>(buf), size);
+    LOG_DEBUG << "[write] fd=" << fd << " size=" << size;
+    fd_file_size_map_[fd] += size;
+    return size;
+}
+
+int BwtFSMounter::write(int fd, const char* buf, size_t size, off_t offset) {
+    return write(fd, buf, size);
+}
+
+int BwtFSMounter::remove(const std::string& path){
+    LOG_DEBUG << "[unlink] " << path;
+    std::string file_token = file_manager_.getFileToken(path);
+    if (file_token.empty() || file_token == "") {
+        LOG_ERROR << "文件不存在: " << path;
+        return -1;
+    }
+    BwtFS::Node::bw_tree tree(file_token, false);
+    tree.delete_file();
+    file_manager_.remove(path);
+    return 0;
+}
+
+int BwtFSMounter::close(int fd){
+    LOG_DEBUG << "[close] fd=" << fd;
+    auto it = fd_tree_map_.find(fd);
+    if (it != fd_tree_map_.end()) {
+        delete it->second;
+        fd_tree_map_.erase(it);
+    }
+    auto write_it = fd_write_wait_map_.find(fd);
+    if (write_it != fd_write_wait_map_.end()) {
+        // 完成写入并保存文件
+        write_it->second->flush();
+        write_it->second->join();
+        std::string file_token = write_it->second->get_token();
+        // 在文件管理器中注册新文件
+        size_t file_size = fd_file_size_map_[fd];
+        file_manager_.addFile(fd_map_[fd], file_token, file_size);
+        delete write_it->second;
+        fd_write_wait_map_.erase(write_it);
+        fd_file_size_map_.erase(fd);
+    }
+    auto path_it = fd_map_.find(fd);
+    if (path_it != fd_map_.end()) {
+        path_fd_map_.erase(path_it->second);
+        fd_map_.erase(path_it);
+    }
+    return 0;
+}
+
+int BwtFSMounter::mkdir(const std::string& path) {
+    LOG_DEBUG << "[mkdir] " << path;
+    file_manager_.createDir(path);
+    return 0;
+}
+
+std::vector<std::string> splitPath(const std::string& path) {
+        std::vector<std::string> components;
+        std::stringstream ss(path);
+        std::string component;
+        
+        // 分割路径，跳过空组件
+        while (std::getline(ss, component, '/')) {
+            if (!component.empty()) {
+                components.push_back(component);
+            }
+        }
+        
+        return components;
+    }
+
+int BwtFSMounter::rename(const std::string& old_path, const std::string& new_path) {
+    LOG_DEBUG << "[rename] " << old_path << " -> " << new_path;
+    // file_manager_.rename(old_path, new_path);
+    // 根据oldpath和newpath判断是重命名文件、文件夹，还是移动
+    std::vector<std::string> old_paths = splitPath(old_path);
+    std::vector<std::string> new_paths = splitPath(new_path);
+    if (old_paths.size() == new_paths.size()) {
+        // 重命名
+        bool is_rename = true;
+        for (size_t i = 0; i < old_paths.size() - 1; i++) {
+            if (old_paths[i] != new_paths[i]) {
+                is_rename = false;
+                break;
+            }
+        }
+        if (is_rename) {
+            file_manager_.rename(old_path, new_path);
+            LOG_DEBUG << "[rename] Detected as rename operation.";
+            return 0;
+        } else {
+            file_manager_.move(old_path, new_path);
+            LOG_DEBUG << "[rename] Detected as move operation.";
+            return 0;
+        }
+    } else {
+        // 移动
+        file_manager_.move(old_path, new_path);
+    }
+    return 0;
+}
+
+bool BwtFSMounter::is_directory(const std::string& path) {
+    auto file_node = file_manager_.getFile(path);
+    return file_node.is_dir;
+}
+
+std::vector<std::string> BwtFSMounter::list_files(){
+    auto file_nodes = file_manager_.listDir("/");
+    std::vector<std::string> res;
+    for (auto& node : file_nodes) {
+        res.push_back(node.name);
+    }
+    return res;
+}
+
+std::vector<std::string> BwtFSMounter::list_files_in_dir(const std::string& dir_path) {
+    auto file_nodes = file_manager_.listDir(dir_path);
+    std::vector<std::string> res;
+    for (auto& node : file_nodes) {
+        res.push_back(node.name);
+    }
+    return res;
+}
+
+std::string BwtFSMounter::normalize_path(const std::string& path) {
+    if (path.empty()) return "/";
+    if (path != "/" && path.back() == '/') {
+        return path.substr(0, path.length() - 1);
+    }
+    return path;
+}
+
+std::string BwtFSMounter::get_parent_dir(const std::string& path) {
+    std::string normalized = normalize_path(path);
+
+    if (normalized == "/") return "/";
+
+    size_t last_slash = normalized.find_last_of('/');
+    if (last_slash == 0) return "/";
+    if (last_slash == std::string::npos) return "/";
+
+    return normalized.substr(0, last_slash);
+}
+
+std::string BwtFSMounter::get_basename(const std::string& path) {
+    std::string normalized = normalize_path(path);
+
+    if (normalized == "/") return "";
+
+    size_t last_slash = normalized.find_last_of('/');
+    if (last_slash == std::string::npos) return normalized;
+
+    return normalized.substr(last_slash + 1);
+}
+
+void BwtFSMounter::remove_recursive(const std::string& path) {
+    LOG_DEBUG << "[remove_recursive] " << path;
+    file_manager_.remove(path);
+}
+
+void BwtFSMounter::move_recursive(const std::string& old_path, const std::string& new_path) {
+    LOG_DEBUG << "[move_recursive] " << old_path << " -> " << new_path;
+    file_manager_.move(old_path, new_path);
+}
+
+bool BwtFSMounter::file_exists(const std::string& path) {
+    auto file_node = file_manager_.getFile(path);
+    return !file_node.name.empty();
+}
+
+FileNode BwtFSMounter::getFileNode(const std::string& path) {
+    auto file_node = file_manager_.getFile(path);
+    return file_node;
+}
+
+SystemInfo BwtFSMounter::getSystemInfo() {
+    return system_manager_.getSystemInfo();
+}
+
+
+
