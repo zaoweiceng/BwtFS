@@ -47,11 +47,11 @@ class SystemManager{
             filesystem_ = BwtFS::System::openBwtFS(system_path);
         }
         ~SystemManager(){
-            filesystem_->~FileSystem();
         }
         // getSystemInfo
         SystemInfo getSystemInfo(){
             SystemInfo info;
+            // LOG_DEBUG << "Getting system info from filesystem.";
             info.file_size = filesystem_->getFileSize();
             info.block_size = filesystem_->getBlockSize();
             info.block_count = filesystem_->getBlockCount();
@@ -60,270 +60,18 @@ class SystemManager{
             info.free_size = filesystem_->getFreeSize();
             info.create_time = filesystem_->getCreateTime();
             info.modify_time = filesystem_->getModifyTime();
+            // LOG_DEBUG << "System info retrieved: "
+            //           << "file_size=" << info.file_size << ", "
+            //           << "block_size=" << info.block_size << ", "
+            //           << "block_count=" << info.block_count << ", "
+            //           << "used_size=" << info.used_size << ", "
+            //           << "total_size=" << info.total_size << ", "
+            //           << "free_size=" << info.free_size << ", "
+            //           << "create_time=" << info.create_time << ", "
+            //           << "modify_time=" << info.modify_time;
             return info;
         }
 };
-
-// class FileNode{
-//     private:
-//         bool is_directory;
-//         json* content;
-//         std::vector<std::string> file_list;
-//         std::string file_token;
-//         std::map<std::string, std::shared_ptr<json*>> data;
-//         void readDataFromJson(){
-//             if (is_directory){
-//                 for (auto& el : content->items()){
-//                     file_list.push_back(el.key());
-//                     data[el.key()] = std::make_shared<json*>(&(*content)[el.key()]);
-//                 }
-//             }else{
-//                 file_token = content->get<std::string>();
-//             }
-//         };
-//     public:
-//         FileNode(bool is_directory, json* content): is_directory(is_directory), content(content){
-//             readDataFromJson();
-//         };
-//         ~FileNode(){};
-//         bool isDirectory() const {
-//             return is_directory;
-//         }
-//         json* getContent() const {
-//             return content;
-//         }
-//         std::string toString() const {
-//             if(content->is_null()){
-//                 return "";
-//             }
-//             return content->dump(4);
-//         }
-//         json toJson() {
-//             json res_data;
-//             if (!is_directory){
-//                 res_data = {
-//                     "token", file_token
-//                 };
-//             }else{
-//                 res_data = {
-//                     "files", json::array()
-//                 };
-//                 for(auto chile_node : data){
-//                     res_data["files"].push_back({
-//                         "name", chile_node.first,
-//                         "is_directory", (*chile_node.second)->is_object()
-//                     });
-//                 }
-//             }
-//             return res_data;
-//         }
-//         std::vector<std::string> getFileList() const {
-//             return file_list;
-//         }
-        
-        
-// };
-
-// class NodeManager{
-//     private:
-//         json data;
-//         std::string dir_file_path;
-
-//         bool loadDirectoryFromFileByPath(const std::string& dir_file_path){
-//             std::ifstream infile(dir_file_path);
-//             if (!infile.is_open()){
-//                 LOG_ERROR << "Failed to open directory file: " << dir_file_path;
-//                 return false;
-//             }
-//             try{
-//                 infile >> data;
-//             }catch (const std::exception& e){
-//                 LOG_ERROR << "Failed to parse directory file: " << dir_file_path << " Error: " << e.what();
-//                 infile.close();
-//                 return false;
-//             }
-//             infile.close();
-//             return true;
-//         }
-//     public:
-//         NodeManager(std::string dir_file_path){
-//             if(!std::filesystem::exists(dir_file_path)){
-//                 LOG_ERROR << "Directory file does not exist: " << dir_file_path;
-//                 throw std::runtime_error("Directory file does not exist: " + dir_file_path);
-//             }
-//             loadDirectoryFromFileByPath(dir_file_path);
-//         }
-//         ~NodeManager(){};
-//         void clearData(){
-//             data = json::object();
-//         }
-//         bool saveDirectoryToFileByPath(const std::string& dir_file_path){
-//             std::ofstream outfile(dir_file_path);
-//             if (!outfile.is_open()){
-//                 LOG_ERROR << "Failed to open directory file for writing: " << dir_file_path;
-//                 return false;
-//             }
-//             try{
-//                 if (data.is_null()){
-//                     data = json::object();
-//                 }
-//                 outfile << data.dump(4);
-//             }catch (const std::exception& e){
-//                 LOG_ERROR << "Failed to write directory file: " << dir_file_path << " Error: " << e.what();
-//                 outfile.close();
-//                 return false;
-//             }
-//             outfile.close();
-//             return true;
-//         }
-//         // getDirectoryNodeByPath
-//         bool createDirectoryByPath(std::string parent_path, std::string dir_name){
-//             json* current = &data;
-//             if (parent_path != "/"){
-//                 std::istringstream ss(parent_path);
-//                 std::string token;
-//                 while (std::getline(ss, token, '/')){
-//                     if (token.empty()) continue;
-//                     if (current->contains(token)){
-//                         current = &(*current)[token];
-//                     }else{
-//                         LOG_ERROR << "Parent directory does not exist: " << parent_path;
-//                         return false;
-//                     }
-//                 }
-//             }
-//             if (current->contains(dir_name)){
-//                 LOG_ERROR << "Directory already exists: " << dir_name;
-//                 return false;
-//             }
-//             (*current)[dir_name] = json::object();
-//             return true;
-//         }
-//         bool deleteDirectoryByPath(std::string dir_path){
-//             json* current = &data;
-//             std::istringstream ss(dir_path);
-//             std::string token;
-//             std::vector<json*> path_nodes;
-//             path_nodes.push_back(current);
-//             while (std::getline(ss, token, '/')){
-//                 if (token.empty()) continue;
-//                 if (current->contains(token)){
-//                     current = &(*current)[token];
-//                     path_nodes.push_back(current);
-//                 }else{
-//                     LOG_ERROR << "Directory does not exist: " << dir_path;
-//                     return false;
-//                 }
-//                 LOG_INFO << "Traversing to: " << token;
-//             }
-//             // 删除节点
-//             if (path_nodes.size() < 2){
-//                 LOG_ERROR << "Cannot delete root directory";
-//                 return false;
-//             }
-//             json* parent = path_nodes[path_nodes.size() - 2];
-//             parent->erase(token);
-//             return true;
-//         }
-//         bool renameDirectoryByPath(std::string dir_path, std::string new_name){
-//             json* current = &data;
-//             std::istringstream ss(dir_path);
-//             std::string token;
-//             std::vector<json*> path_nodes;
-//             path_nodes.push_back(current);
-//             while (std::getline(ss, token, '/')){
-//                 if (token.empty()) continue;
-//                 if (current->contains(token)){
-//                     current = &(*current)[token];
-//                     path_nodes.push_back(current);
-//                 }else{
-//                     LOG_ERROR << "Directory does not exist: " << dir_path;
-//                     return false;
-//                 }
-//             }
-//             // 重命名节点
-//             if (path_nodes.size() < 2){
-//                 LOG_ERROR << "Cannot rename root directory";
-//                 return false;
-//             }
-//             json* parent = path_nodes[path_nodes.size() - 2];
-//             (*parent)[new_name] = *current;
-//             parent->erase(token);
-//             return true;
-//         }
-//         // 将一个文件夹(包括文件夹内部的内容)从old_path移动到new_path目录下
-//         bool moveDirectoryByPath(std::string old_path, std::string new_path){
-//             auto normalize = [](std::string p)->std::string{
-//                 if (p.empty()) return "/";
-//                 // remove trailing slashes (but keep single leading slash for root)
-//                 while (p.size() > 1 && p.back() == '/') p.pop_back();
-//                 if (p.front() != '/') p = "/" + p;
-//                 return p;
-//             };
-//             old_path = normalize(old_path);
-//             new_path = normalize(new_path);
-
-//             if (old_path == "/"){
-//                 LOG_ERROR << "Cannot move root directory";
-//                 return false;
-//             }
-//             // Prevent moving into itself or its descendant
-//             if (new_path == old_path || (new_path.size() > old_path.size() && new_path.rfind(old_path, 0) == 0 && new_path[old_path.size()] == '/')){
-//                 LOG_ERROR << "Cannot move directory into itself or its own subtree: " << old_path << " -> " << new_path;
-//                 return false;
-//             }
-
-//             // Locate source node and its parent
-//             json* current = &data;
-//             std::istringstream ss(old_path);
-//             std::string token;
-//             std::vector<json*> path_nodes;
-//             path_nodes.push_back(current);
-//             std::string last_token;
-//             while (std::getline(ss, token, '/')){
-//                 if (token.empty()) continue;
-//                 if (current->contains(token)){
-//                     current = &(*current)[token];
-//                     path_nodes.push_back(current);
-//                     last_token = token;
-//                 } else {
-//                     LOG_ERROR << "Source directory does not exist: " << old_path;
-//                     return false;
-//                 }
-//             }
-//             if (path_nodes.size() < 2){
-//                 LOG_ERROR << "Cannot move root directory";
-//                 return false;
-//             }
-//             json* src_parent = path_nodes[path_nodes.size() - 2];
-
-//             // Locate destination node
-//             json* dest = &data;
-//             if (new_path != "/"){
-//                 std::istringstream ss2(new_path);
-//                 while (std::getline(ss2, token, '/')){
-//                     if (token.empty()) continue;
-//                     if (dest->contains(token)){
-//                         dest = &(*dest)[token];
-//                     } else {
-//                         LOG_ERROR << "Destination directory does not exist: " << new_path;
-//                         return false;
-//                     }
-//                 }
-//             }
-
-//             // Prevent name collision at destination
-//             if (dest->contains(last_token)){
-//                 LOG_ERROR << "Destination already contains a directory named: " << last_token;
-//                 return false;
-//             }
-
-//             // Move: copy node to destination and erase from source parent
-//             (*dest)[last_token] = *current;
-//             src_parent->erase(last_token);
-//             return true;
-//         }
-// };
 
 // 文件节点信息结构体
 struct FileNode {
@@ -341,6 +89,7 @@ struct FileNode {
 class FileManager {
 private:
     json root_json;               // 完整的JSON结构
+    std::string file_path;      // JSON文件路径（用于保存）
     
     // 分割路径为组件
     std::vector<std::string> splitPath(const std::string& path) {
@@ -451,6 +200,7 @@ public:
     }
     FileManager(const std::string& initial_path) {
         loadFromFile(initial_path);
+        file_path = initial_path;
     }
     ~FileManager() {}
     
@@ -465,6 +215,7 @@ public:
             
             file >> root_json;
             LOG_INFO << "成功加载JSON文件: " << filename;
+            file.close();
             return true;
         } catch (const std::exception& e) {
             LOG_ERROR << "加载JSON文件失败: " << e.what();
@@ -483,6 +234,7 @@ public:
             
             file << root_json.dump(4);  // 缩进为4个空格
             LOG_DEBUG << "成功保存JSON文件: " << filename;
+            file.close();
             return true;
         } catch (const std::exception& e) {
             LOG_ERROR << "保存JSON文件失败: " << e.what();
@@ -493,7 +245,6 @@ public:
     // 列出目录内容（惰性解析）
     std::vector<FileNode> listDir(const std::string& path) {
         std::vector<FileNode> result;
-        
         json* node = getNodeAtPath(path);
         if (!node || !node->contains("is_dir") || !(*node)["is_dir"]) {
             LOG_ERROR << node->dump();
@@ -565,6 +316,7 @@ public:
         }else{
             (*parent)["children"][name] = new_dir;
         }
+        saveToFile(this->file_path);
         LOG_DEBUG << "创建目录: " << path;
         return true;
     }
@@ -596,6 +348,7 @@ public:
         // LOG_DEBUG << "parent: " << parent->dump();
         // LOG_DEBUG << "name: " << name;
         // LOG_DEBUG << "new_file: " << new_file.dump();    
+        saveToFile(this->file_path);
         LOG_DEBUG << "添加文件: " << path << " (token: " << token << ")";
         return true;
     }
@@ -620,6 +373,7 @@ public:
         (*parent)["children"].erase(name);
         
         // std::cout << "删除: " << path << std::endl;
+        saveToFile(this->file_path);
         LOG_DEBUG << "删除: " << path;
         return true;
     }
@@ -645,6 +399,7 @@ public:
         (*parent)["children"].erase(old_name);
         // (*parent)[new_name] = node;
         (*parent)["children"][new_name] = node;
+        saveToFile(this->file_path);
         
         LOG_DEBUG << "重命名: " << old_path << " -> " << new_name;
         return true;
@@ -682,6 +437,7 @@ public:
         
         // std::cout << "移动: " << src_path << " -> " << dest_dir << std::endl;
         LOG_DEBUG << "移动: " << src_path << " -> " << dest_dir;
+        saveToFile(this->file_path);
         return true;
     }
     

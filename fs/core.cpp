@@ -20,13 +20,12 @@ int MemoryFS::create(const std::string& path) {
     // 如果文件不存在，则创建一个空文件
     if (files_.find(path) == files_.end()) {
         files_[path] = File{path, {}, false};  // 普通文件
-        std::cout << "[create] " << path << std::endl;
+        LOG_DEBUG << "[create] " << path;
         return 0;
     }
     // 已经存在也返回 0，表示成功（类似 FUSE 语义）
     return 0;
 }
-
 
 int MemoryFS::read(int fd, char* buf, size_t size){
     auto it = fd_map_.find(fd);
@@ -35,7 +34,7 @@ int MemoryFS::read(int fd, char* buf, size_t size){
 
     size = std::min(size, f.data.size());
     memcpy(buf, f.data.data(), size);
-    std::cout << "[read] fd=" << fd << " size=" << size << std::endl;
+    LOG_DEBUG << "[read] fd=" << fd << " size=" << size;
     return size;
 }
 
@@ -50,10 +49,9 @@ int MemoryFS::read(int fd, char* buf, size_t size, off_t offset) {
 
     size = std::min<size_t>(size, f.data.size() - offset);
     memcpy(buf, f.data.data() + offset, size);
-    std::cout << "[read] fd=" << fd << " offset=" << offset << " size=" << size << std::endl;
+    LOG_DEBUG << "[read] fd=" << fd << " offset=" << offset << " size=" << size;
     return size;
 }
-
 
 int MemoryFS::write(int fd, const char* buf, size_t size){
     auto it = fd_map_.find(fd);
@@ -61,7 +59,7 @@ int MemoryFS::write(int fd, const char* buf, size_t size){
     auto& f = files_[it->second];
 
     f.data.assign(buf, buf + size);
-    std::cout << "[write] fd=" << fd << " size=" << size << std::endl;
+    LOG_DEBUG << "[write] fd=" << fd << " size=" << size;
     return size;
 }
 
@@ -76,18 +74,17 @@ int MemoryFS::write(int fd, const char* buf, size_t size, off_t offset) {
     }
 
     memcpy(f.data.data() + offset, buf, size);
-    std::cout << "[write] fd=" << fd << " offset=" << offset << " size=" << size << std::endl;
+    LOG_DEBUG << "[write] fd=" << fd << " offset=" << offset << " size=" << size;
     return size;
 }
 
-
 int MemoryFS::remove(const std::string& path){
-    std::cout << "[unlink] " << path << std::endl;
+    LOG_DEBUG << "[unlink] " << path;
     return files_.erase(path) ? 0 : -1;
 }
 
 int MemoryFS::close(int fd){
-    std::cout << "[close] fd=" << fd << std::endl;
+    LOG_DEBUG << "[close] fd=" << fd;
     return fd_map_.erase(fd) ? 0 : -1;
 }
 
@@ -95,7 +92,7 @@ int MemoryFS::mkdir(const std::string& path) {
     // 如果目录不存在，则创建一个空目录
     if (files_.find(path) == files_.end()) {
         files_[path] = File{path, {}, true};   // 目录
-        std::cout << "[mkdir] " << path << std::endl;
+        LOG_DEBUG << "[mkdir] " << path;
         return 0;
     }
     // 已经存在，如果是目录则返回成功，否则返回错误
@@ -103,23 +100,23 @@ int MemoryFS::mkdir(const std::string& path) {
 }
 
 int MemoryFS::rename(const std::string& old_path, const std::string& new_path) {
-    std::cout << "[rename] starting: " << old_path << " -> " << new_path << std::endl;
+    LOG_DEBUG << "[rename] starting: " << old_path << " -> " << new_path;
 
     auto it = files_.find(old_path);
     if (it == files_.end()) {
-        std::cout << "[rename] failed: source " << old_path << " not found" << std::endl;
+        LOG_DEBUG << "[rename] failed: source " << old_path << " not found";
         return -1;
     }
 
     // 如果目标文件已存在，需要先删除它及其所有子内容
     if (files_.find(new_path) != files_.end()) {
-        std::cout << "[rename] removing existing target: " << new_path << std::endl;
+        LOG_DEBUG << "[rename] removing existing target: " << new_path;
         remove_recursive(new_path);
     }
 
     // 如果移动的是目录，需要递归移动所有子内容
     if (it->second.is_directory) {
-        std::cout << "[rename] moving directory with recursive content" << std::endl;
+        LOG_DEBUG << "[rename] moving directory with recursive content";
         move_recursive(old_path, new_path);
     } else {
         // 移动单个文件
@@ -130,7 +127,7 @@ int MemoryFS::rename(const std::string& old_path, const std::string& new_path) {
         // 删除旧文件条目
         files_.erase(it);
 
-        std::cout << "[rename] moved file: " << old_path << " -> " << new_path << std::endl;
+        LOG_DEBUG << "[rename] moved file: " << old_path << " -> " << new_path;
     }
 
     // 更新所有打开的文件描述符
@@ -148,11 +145,13 @@ int MemoryFS::rename(const std::string& old_path, const std::string& new_path) {
 }
 
 bool MemoryFS::is_directory(const std::string& path) {
+    LOG_DEBUG << "[is_directory] checking: " << path;
     auto it = files_.find(path);
     return it != files_.end() && it->second.is_directory;
 }
 
 std::vector<std::string> MemoryFS::list_files(){
+    LOG_DEBUG << "[list_files] listing all files";
     std::vector<std::string> res;
     for (auto& [name, _] : files_)
         res.push_back(name.substr(1)); // 去掉 '/'
@@ -271,6 +270,7 @@ void MemoryFS::move_recursive(const std::string& old_path, const std::string& ne
 }
 
 int BwtFSMounter::open(const std::string& path){
+    LOG_DEBUG << "[open] requested path: " << path;
     if (path_fd_map_.find(path) != path_fd_map_.end()) {
         // 文件已经打开，返回已有的文件描述符
         int existing_fd = path_fd_map_[path];
@@ -293,6 +293,7 @@ int BwtFSMounter::open(const std::string& path){
 }
 
 int BwtFSMounter::create(const std::string& path) {
+    LOG_DEBUG << "[create] requested path: " << path;
     // 创建文件
     int fd = next_fd_++;
     fd_map_[fd] = path;
@@ -305,6 +306,7 @@ int BwtFSMounter::create(const std::string& path) {
 }
 
 int BwtFSMounter::read(int fd, char* buf, size_t size){
+    LOG_DEBUG << "[read] requested fd=" << fd << " size=" << size;
     auto it = fd_map_.find(fd);
     if (it == fd_map_.end()) return -1;
     auto tree_it = fd_tree_map_.find(fd);
@@ -320,6 +322,7 @@ int BwtFSMounter::read(int fd, char* buf, size_t size){
 }
 
 int BwtFSMounter::read(int fd, char* buf, size_t size, off_t offset) {
+    LOG_DEBUG << "[read] requested fd=" << fd << " offset=" << offset << " size=" << size;
     auto it = fd_map_.find(fd);
     if (it == fd_map_.end()) return -1;
     auto tree_it = fd_tree_map_.find(fd);
@@ -335,6 +338,7 @@ int BwtFSMounter::read(int fd, char* buf, size_t size, off_t offset) {
 }
 
 int BwtFSMounter::write(int fd, const char* buf, size_t size){
+    LOG_DEBUG << "[write] requested fd=" << fd << " size=" << size;
     auto it = fd_map_.find(fd);
     if (it == fd_map_.end()) return -1;
     auto tree_it = fd_write_wait_map_.find(fd);
@@ -348,6 +352,8 @@ int BwtFSMounter::write(int fd, const char* buf, size_t size){
 }
 
 int BwtFSMounter::write(int fd, const char* buf, size_t size, off_t offset) {
+    LOG_DEBUG << "[write] requested fd=" << fd << " offset=" << offset << " size=" << size;
+    // 目前不支持偏移写入，直接调用不带偏移的写入函数
     return write(fd, buf, size);
 }
 
@@ -445,11 +451,13 @@ int BwtFSMounter::rename(const std::string& old_path, const std::string& new_pat
 }
 
 bool BwtFSMounter::is_directory(const std::string& path) {
+    LOG_DEBUG << "[is_directory] checking: " << path;
     auto file_node = file_manager_.getFile(path);
     return file_node.is_dir;
 }
 
 std::vector<std::string> BwtFSMounter::list_files(){
+    LOG_DEBUG << "[list_files] listing all files";
     auto file_nodes = file_manager_.listDir("/");
     std::vector<std::string> res;
     for (auto& node : file_nodes) {
@@ -459,6 +467,7 @@ std::vector<std::string> BwtFSMounter::list_files(){
 }
 
 std::vector<std::string> BwtFSMounter::list_files_in_dir(const std::string& dir_path) {
+    LOG_DEBUG << "[list_files_in_dir] listing files in dir: " << dir_path;
     auto file_nodes = file_manager_.listDir(dir_path);
     std::vector<std::string> res;
     for (auto& node : file_nodes) {
@@ -468,6 +477,7 @@ std::vector<std::string> BwtFSMounter::list_files_in_dir(const std::string& dir_
 }
 
 std::string BwtFSMounter::normalize_path(const std::string& path) {
+    LOG_DEBUG << "[normalize_path] normalizing: " << path;
     if (path.empty()) return "/";
     if (path != "/" && path.back() == '/') {
         return path.substr(0, path.length() - 1);
@@ -509,6 +519,7 @@ void BwtFSMounter::move_recursive(const std::string& old_path, const std::string
 }
 
 bool BwtFSMounter::file_exists(const std::string& path) {
+    LOG_DEBUG << "[file_exists] checking: " << path;
     auto file_node = file_manager_.getFile(path);
     return !file_node.name.empty();
 }

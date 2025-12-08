@@ -349,6 +349,7 @@ static BwtFSMounter bwtfs;
     static int bwtfs_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi)
 #endif
 {
+    LOG_DEBUG << "[getattr] " << path;
     memset(stbuf, 0, sizeof(struct stat));
 
     if (strcmp(path, "/") == 0 || strcmp(path, "") == 0) {
@@ -399,6 +400,7 @@ static int bwtfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
         filler(buf, name.c_str(), nullptr, 0, FUSE_FILL_DIR_PLUS);
 #elif defined(__APPLE__)
     // macOS FUSE 2.9 API - filler函数只有4个参数
+    LOG_DEBUG << "[readdir] " << path;
     filler(buf, ".", nullptr, 0);
     filler(buf, "..", nullptr, 0);
     for (auto &name : bwtfs.list_files_in_dir(path))
@@ -416,6 +418,7 @@ static int bwtfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 // 打开文件 - 跨平台统一的函数签名
 static int bwtfs_open_fuse(const char *path, struct fuse_file_info *fi)
 {
+    LOG_DEBUG << "[open] " << path;
     fi->fh = bwtfs.open(path);
     return fi->fh < 0 ? -ENOENT : 0;
 }
@@ -434,7 +437,7 @@ static int bwtfs_create_fuse(const char* path, mode_t mode, struct fuse_file_inf
 static int bwtfs_create_fuse(const char* path, mode_t mode, struct fuse_file_info *fi) {
     (void)mode; // 避免未使用参数警告，目前我们的简单实现忽略mode参数
 #endif
-
+    LOG_DEBUG << "[create] " << path;
     // 首先尝试打开文件，如果文件不存在则创建
     int fd = bwtfs.open(path);  // open函数内部会自动创建不存在的文件
     if (fd < 0) {
@@ -466,6 +469,7 @@ static int bwtfs_read_fuse(const char *path, char *buf, size_t size, off_t offse
                           struct fuse_file_info *fi)
 #endif
 {
+    LOG_DEBUG << "[read] " << path;
     return bwtfs.read(fi->fh, buf, size, offset);
 }
 
@@ -484,6 +488,7 @@ static int bwtfs_write_fuse(const char *path, const char *buf, size_t size, off_
                            struct fuse_file_info *fi)
 #endif
 {
+    LOG_DEBUG << "[write] " << path;
     return bwtfs.write(fi->fh, buf, size, offset);
 }
 
@@ -509,13 +514,14 @@ static int bwtfs_statfs(const char *path, struct statvfs *stbuf)
 static int bwtfs_statfs(const char *path, struct statvfs *stbuf)
 #endif
 {
+    LOG_DEBUG << "[statfs] " << path;
     memset(stbuf, 0, sizeof(*stbuf));
 
     SystemInfo sys_info = bwtfs.getSystemInfo();
     // 合理值（单位：block）
     stbuf->f_bsize = sys_info.block_size;        // block size
     stbuf->f_frsize = 4096;
-    stbuf->f_blocks = sys_info.file_size / sys_info.block_size; // 总块数（比如 4GB）
+    stbuf->f_blocks = sys_info.block_count; // 总块数（比如 4GB）
     
     size_t used_size = sys_info.used_size;
     size_t free_size = sys_info.free_size;
@@ -523,8 +529,8 @@ static int bwtfs_statfs(const char *path, struct statvfs *stbuf)
     stbuf->f_bfree  = free_size / stbuf->f_bsize;  // 空闲块数
     stbuf->f_bavail = stbuf->f_bfree; // 非特权用户可用
 
-    stbuf->f_files  = 100000;     // 文件总数上限
-    stbuf->f_ffree  = 100000;     // 剩余文件数
+    stbuf->f_files  = 10000;     // 文件总数上限
+    stbuf->f_ffree  = 999;     // 剩余文件数
 
     return 0;
 }
@@ -532,7 +538,7 @@ static int bwtfs_statfs(const char *path, struct statvfs *stbuf)
 // 文件访问权限检查 - 跨平台统一的实现
 static int bwtfs_access_fuse(const char *path, int mask) {
     // 简化实现：永远允许访问所有文件
-    // 在实际应用中，这里应该检查文件权限
+    // LOG_DEBUG << "[access] " << path;
     (void)path;     // 避免未使用参数警告
     (void)mask;     // 避免未使用参数警告
     return 0;
@@ -548,6 +554,7 @@ static int bwtfs_rename_fuse(const char *old_path, const char *new_path, unsigne
 #elif defined(__APPLE__)
     // macOS使用传统的2参数rename函数
 static int bwtfs_rename_fuse(const char *old_path, const char *new_path) {
+    LOG_DEBUG << "[rename] " << old_path << " -> " << new_path;
     return bwtfs.rename(old_path, new_path);
 }
 #else
@@ -583,6 +590,7 @@ static int bwtfs_chown_fuse(const char *path, fuse_uid_t uid, fuse_gid_t gid, st
     // macOS使用标准mode_t类型
 static int bwtfs_mkdir_fuse(const char *path, mode_t mode) {
     (void)mode; // 忽略权限参数
+    LOG_DEBUG << "[mkdir] " << path;
     return bwtfs.mkdir(path);
 }
 
@@ -590,12 +598,14 @@ static int bwtfs_mkdir_fuse(const char *path, mode_t mode) {
 static int bwtfs_chmod_fuse(const char *path, mode_t mode, struct fuse_file_info *fi) {
     // 简化实现：忽略权限修改，总是返回成功
     (void)path; (void)mode; (void)fi;
+    LOG_DEBUG << "[chmod] " << path;
     return 0;
 }
 
 static int bwtfs_chown_fuse(const char *path, uid_t uid, gid_t gid, struct fuse_file_info *fi) {
     // 简化实现：忽略所有者修改，总是返回成功
     (void)path; (void)uid; (void)gid; (void)fi;
+    LOG_DEBUG << "[chown] " << path;
     return 0;
 }
 #else
