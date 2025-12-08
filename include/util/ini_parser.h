@@ -20,7 +20,7 @@ namespace BwtFS{
                 static bool initialized = false;
                 if (!initialized) {
                     initialized = true;
-                    std::cout << "Config instance initialized." << std::endl;
+                    // std::cout << "Config instance initialized." << std::endl;
                     instance.init(); // 仅在第一次调用时初始化
                 }
                 return instance;

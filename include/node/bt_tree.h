@@ -545,17 +545,17 @@ namespace BwtFS::Node{
                 }
                 auto binary_data = bkn->to_binary(seed, level);
                 auto bitmap = m_transaction_writer.write(binary_data);
-                LOG_INFO << "Bitmap of token: " << bitmap;
+                // LOG_INFO << "Bitmap of token: " << bitmap;
                 
                 this->m_transaction_writer.set_write_finished(true);
                 m_token = generate_token(bitmap, bkn->get_start(), bkn->get_length(), seed, level);
                 is_generate = true;
-                LOG_INFO << "Token generated: " << m_token;
-                LOG_INFO << "bitmap: " << bitmap 
-                         << ", start: " << bkn->get_start() 
-                         << ", length: " << bkn->get_length() 
-                         << ", seed: " << seed 
-                         << ", level: " << (int)level;
+                // LOG_INFO << "Token generated: " << m_token;
+                // LOG_INFO << "bitmap: " << bitmap 
+                //          << ", start: " << bkn->get_start() 
+                //          << ", length: " << bkn->get_length() 
+                //          << ", seed: " << seed 
+                //          << ", level: " << (int)level;
                 delete bkn;
                 return m_token;
             }

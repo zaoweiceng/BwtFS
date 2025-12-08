@@ -16,7 +16,7 @@ BwtFS::System::Bitmap::Bitmap(size_t bitmap_start, size_t bitmap_wear_start, siz
     this->bitmap_wear = file->read(bitmap_wear_start*BwtFS::BLOCK_SIZE, this->size_wear / BwtFS::BLOCK_SIZE + 1);
     this->bitmap_count = bitmap_count;
     this->init_bpm();
-    LOG_INFO << "Bitmap initialized." ;
+    // LOG_INFO << "Bitmap initialized." ;
 }
 
 void BwtFS::System::Bitmap::set(const size_t index) {
@@ -174,7 +174,7 @@ size_t BwtFS::System::Bitmap::getSystemUsedSize() const {
 }
 
 void BwtFS::System::Bitmap::init_bpm(){
-    LOG_DEBUG << "Initializing bpm...";
+    // LOG_DEBUG << "Initializing bpm...";
     for (size_t i = 0; i < this->size-1; i++) {
         auto byte = (uint8_t)this->bitmap.get(i);
         for (size_t j = 0; j < 8; j++) {

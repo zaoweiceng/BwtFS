@@ -1,4 +1,4 @@
-set(BINARY ${CMAKE_PROJECT_NAME}_net)
+set(BINARY bwtfs_net)
 file(GLOB_RECURSE NET_SOURCES LIST_DIRECTORIES false *.h *.cpp *.hpp)
 
 set(SOURCES ${NET_SOURCES})
