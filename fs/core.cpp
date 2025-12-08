@@ -1,6 +1,9 @@
 #include "core.h"
 #include <cstring>
 #include <iostream>
+#include <chrono>
+#include <thread>
+#include <set>
 
 using BwtFS::Util::Logger;
 
@@ -271,37 +274,93 @@ void MemoryFS::move_recursive(const std::string& old_path, const std::string& ne
 
 int BwtFSMounter::open(const std::string& path){
     LOG_DEBUG << "[open] requested path: " << path;
-    if (path_fd_map_.find(path) != path_fd_map_.end()) {
+
+    // 确保路径以/开头
+    std::string normalized_path = path;
+    if (!path.empty() && path[0] != '/') {
+        normalized_path = "/" + path;
+    }
+
+    if (path_fd_map_.find(normalized_path) != path_fd_map_.end()) {
         // 文件已经打开，返回已有的文件描述符
-        int existing_fd = path_fd_map_[path];
-        LOG_DEBUG << "[open] " << path << " already opened -> fd=" << existing_fd;
+        int existing_fd = path_fd_map_[normalized_path];
+        LOG_DEBUG << "[open] " << normalized_path << " already opened -> fd=" << existing_fd;
         return existing_fd;
     }
-    // 创建新的 bw_tree 对象并存储
-    std::string file_token = file_manager_.getFileToken(path);
-    if (file_token.empty() || file_token == "") {
-        LOG_ERROR << "文件不存在: " << path;
+
+    // 检查文件是否存在
+    std::string file_token = file_manager_.getFileToken(normalized_path);
+    if (file_token.empty()) {
+        LOG_ERROR << "文件不存在或正在写入中: " << normalized_path;
         return -1;
     }
-    BwtFS::Node::bw_tree* tree = new BwtFS::Node::bw_tree(file_token, false);
-    int fd = next_fd_++;
-    fd_map_[fd] = path;
-    path_fd_map_[path] = fd;
-    fd_tree_map_[fd] = tree;
-    LOG_DEBUG << "[open] " << path << " -> fd=" << fd;
-    return fd;
+
+    // 创建新的 bw_tree 对象并存储
+    try {
+        BwtFS::Node::bw_tree* tree = new BwtFS::Node::bw_tree(file_token, false);
+        int fd = next_fd_++;
+        fd_map_[fd] = normalized_path;
+        path_fd_map_[normalized_path] = fd;
+        fd_tree_map_[fd] = tree;
+        LOG_DEBUG << "[open] " << normalized_path << " -> fd=" << fd;
+        return fd;
+    } catch (const std::exception& e) {
+        LOG_ERROR << "[open] failed to create bw_tree: " << e.what();
+        return -1;
+    }
 }
 
 int BwtFSMounter::create(const std::string& path) {
     LOG_DEBUG << "[create] requested path: " << path;
-    // 创建文件
+
+    // 确保路径以/开头
+    std::string normalized_path = path;
+    if (!path.empty() && path[0] != '/') {
+        normalized_path = "/" + path;
+    }
+
+    // 创建文件描述符
     int fd = next_fd_++;
-    fd_map_[fd] = path;
-    path_fd_map_[path] = fd;
-    // 在文件管理器中添加文件
-    fd_write_wait_map_[fd] = new BwtFS::Node::bw_tree(); // 创建一个空的 bw_tree 对象用于写入
-    fd_file_size_map_[fd] = 0; // 初始化文件大小为0
-    LOG_DEBUG << "[create] " << path;
+    fd_map_[fd] = normalized_path;
+    path_fd_map_[normalized_path] = fd;
+
+    // 检查是否是系统临时文件
+    if (isSystemTempFile(normalized_path)) {
+        LOG_DEBUG << "[create] using memory_fs for system temp file: " << normalized_path;
+
+        // 在memory_fs中创建文件
+        int memory_fd = memory_fs_.create(normalized_path);
+        if (memory_fd < 0) {
+            LOG_ERROR << "[create] failed to create in memory_fs: " << normalized_path;
+            fd_map_.erase(fd);
+            path_fd_map_.erase(normalized_path);
+            return -EIO;
+        }
+
+        // 将memory_fd映射到我们的fd，但标记为内存文件
+        fd_tree_map_[fd] = nullptr; // nullptr表示这是内存文件
+        LOG_DEBUG << "[create] created in memory_fs: " << normalized_path << " -> fd=" << fd;
+
+    } else {
+        // 普通用户文件，使用BwtFS
+        LOG_DEBUG << "[create] using BwtFS for user file: " << normalized_path;
+
+        // 创建一个空的 bw_tree 对象用于写入（按照CMD中的正确方式）
+        try {
+            fd_write_wait_map_[fd] = new BwtFS::Node::bw_tree();
+            LOG_DEBUG << "[create] created bw_tree for fd=" << fd;
+        } catch (const std::exception& e) {
+            LOG_ERROR << "[create] failed to create bw_tree: " << e.what();
+            fd_write_wait_map_.erase(fd);
+            return -EIO;
+        }
+
+        fd_file_size_map_[fd] = 0;
+
+        // 在文件管理器中创建文件占位符（没有token，表示文件正在创建中）
+        file_manager_.addFile(normalized_path, "PENDING", 0);
+        LOG_DEBUG << "[create] created in BwtFS: " << normalized_path << " -> fd=" << fd;
+    }
     return 0;
 }
 
@@ -311,14 +370,32 @@ int BwtFSMounter::read(int fd, char* buf, size_t size){
     if (it == fd_map_.end()) return -1;
     auto tree_it = fd_tree_map_.find(fd);
     if (tree_it == fd_tree_map_.end()) return -1;
-    BwtFS::Node::bw_tree* tree = tree_it->second;
-    // tree->read
-    // Binary read(size_t index, size_t size)
-    Binary data = tree->read(0, size); // 从偏移0开始读取
-    size_t bytes_read = std::min(size, data.size());
-    memcpy(buf, data.data(), bytes_read);
-    LOG_DEBUG << "[read] fd=" << fd << " size=" << bytes_read;
-    return bytes_read;
+
+    // 检查是否是内存文件（nullptr表示内存文件）
+    if (tree_it->second == nullptr) {
+        // 从memory_fs读取
+        std::string path = it->second;
+        auto memory_file_it = memory_fs_.files_.find(path);
+        if (memory_file_it == memory_fs_.files_.end()) {
+            LOG_DEBUG << "[read] memory file not found: " << path;
+            return -1;
+        }
+
+        const auto& data = memory_file_it->second.data;
+        size_t bytes_read = std::min(size, data.size());
+        memcpy(buf, data.data(), bytes_read);
+        LOG_DEBUG << "[read] from memory_fs fd=" << fd << " size=" << bytes_read;
+        return bytes_read;
+
+    } else {
+        // 从BwtFS读取
+        BwtFS::Node::bw_tree* tree = tree_it->second;
+        Binary data = tree->read(0, size); // 从偏移0开始读取
+        size_t bytes_read = std::min(size, data.size());
+        memcpy(buf, data.data(), bytes_read);
+        LOG_DEBUG << "[read] from BwtFS fd=" << fd << " size=" << bytes_read;
+        return bytes_read;
+    }
 }
 
 int BwtFSMounter::read(int fd, char* buf, size_t size, off_t offset) {
@@ -327,28 +404,69 @@ int BwtFSMounter::read(int fd, char* buf, size_t size, off_t offset) {
     if (it == fd_map_.end()) return -1;
     auto tree_it = fd_tree_map_.find(fd);
     if (tree_it == fd_tree_map_.end()) return -1;
-    BwtFS::Node::bw_tree* tree = tree_it->second;
-    // tree->read
-    // Binary read(size_t index, size_t size)
-    Binary data = tree->read(offset, size); // 从指定偏移开始读取
-    size_t bytes_read = std::min(size, data.size());
-    memcpy(buf, data.data(), bytes_read);
-    LOG_DEBUG << "[read] fd=" << fd << " offset=" << offset << " size=" << bytes_read;
-    return bytes_read;
+
+    // 检查是否是内存文件（nullptr表示内存文件）
+    if (tree_it->second == nullptr) {
+        // 从memory_fs读取
+        std::string path = it->second;
+        auto memory_file_it = memory_fs_.files_.find(path);
+        if (memory_file_it == memory_fs_.files_.end()) {
+            LOG_DEBUG << "[read] memory file not found: " << path;
+            return -1;
+        }
+
+        const auto& data = memory_file_it->second.data;
+        if (offset >= data.size()) {
+            return 0; // 超出文件范围
+        }
+
+        size_t available_bytes = data.size() - offset;
+        size_t bytes_read = std::min(size, available_bytes);
+        memcpy(buf, data.data() + offset, bytes_read);
+        LOG_DEBUG << "[read] from memory_fs fd=" << fd << " offset=" << offset << " size=" << bytes_read;
+        return bytes_read;
+
+    } else {
+        // 从BwtFS读取
+        BwtFS::Node::bw_tree* tree = tree_it->second;
+        Binary data = tree->read(offset, size); // 从指定偏移开始读取
+        size_t bytes_read = std::min(size, data.size());
+        memcpy(buf, data.data(), bytes_read);
+        LOG_DEBUG << "[read] from BwtFS fd=" << fd << " offset=" << offset << " size=" << bytes_read;
+        return bytes_read;
+    }
 }
 
 int BwtFSMounter::write(int fd, const char* buf, size_t size){
     LOG_DEBUG << "[write] requested fd=" << fd << " size=" << size;
     auto it = fd_map_.find(fd);
-    if (it == fd_map_.end()) return -1;
+    if (it == fd_map_.end()) {
+        LOG_ERROR << "[write] Invalid fd map entry for fd=" << fd;
+        return -EBADF;
+    }
+
     auto tree_it = fd_write_wait_map_.find(fd);
-    if (tree_it == fd_write_wait_map_.end()) return -1;
+    if (tree_it == fd_write_wait_map_.end()) {
+        LOG_ERROR << "[write] No bw_tree found for fd=" << fd;
+        return -EBADF;
+    }
+
     BwtFS::Node::bw_tree* tree = tree_it->second;
-    // tree->write
-    tree->write(const_cast<char*>(buf), size);
-    LOG_DEBUG << "[write] fd=" << fd << " size=" << size;
-    fd_file_size_map_[fd] += size;
-    return size;
+    if (!tree) {
+        LOG_ERROR << "[write] bw_tree is null for fd=" << fd;
+        return -EIO;
+    }
+
+    try {
+        // 按照CMD中的正确方式写入数据
+        tree->write(const_cast<char*>(buf), size);
+        fd_file_size_map_[fd] += size;
+        LOG_DEBUG << "[write] successfully wrote " << size << " bytes to fd=" << fd << ", total: " << fd_file_size_map_[fd];
+        return size;
+    } catch (const std::exception& e) {
+        LOG_ERROR << "[write] Error writing to fd=" << fd << ": " << e.what();
+        return -EIO;
+    }
 }
 
 int BwtFSMounter::write(int fd, const char* buf, size_t size, off_t offset) {
@@ -364,7 +482,7 @@ int BwtFSMounter::remove(const std::string& path){
         LOG_ERROR << "文件不存在: " << path;
         return -1;
     }
-    BwtFS::Node::bw_tree tree(file_token, false);
+    BwtFS::Node::bw_tree tree(file_token, true);
     tree.delete_file();
     file_manager_.remove(path);
     return 0;
@@ -372,35 +490,111 @@ int BwtFSMounter::remove(const std::string& path){
 
 int BwtFSMounter::close(int fd){
     LOG_DEBUG << "[close] fd=" << fd;
+
+    std::string file_path;
+    auto path_it = fd_map_.find(fd);
+    if (path_it != fd_map_.end()) {
+        file_path = path_it->second;
+    }
+
+    // 处理只读打开的文件
     auto it = fd_tree_map_.find(fd);
     if (it != fd_tree_map_.end()) {
         delete it->second;
         fd_tree_map_.erase(it);
     }
+
+    // 处理写入的文件 - 采用后台异步处理方式
     auto write_it = fd_write_wait_map_.find(fd);
     if (write_it != fd_write_wait_map_.end()) {
-        // 完成写入并保存文件
-        write_it->second->flush();
-        write_it->second->join();
-        std::string file_token = write_it->second->get_token();
-        // 在文件管理器中注册新文件
-        size_t file_size = fd_file_size_map_[fd];
-        file_manager_.addFile(fd_map_[fd], file_token, file_size);
-        delete write_it->second;
-        fd_write_wait_map_.erase(write_it);
-        fd_file_size_map_.erase(fd);
+        if (write_it->second) {
+            LOG_DEBUG << "[close] starting async finalize for fd=" << fd;
+
+            // 将bw_tree对象移交给后台线程处理，立即返回
+            BwtFS::Node::bw_tree* tree_to_finalize = write_it->second;
+            size_t file_size = fd_file_size_map_[fd];
+
+            // 从映射中移除，避免在FUSE回调中持有资源
+            fd_write_wait_map_.erase(write_it);
+            fd_file_size_map_.erase(fd);
+
+            // 启动后台线程处理flush/join（避免在FUSE回调中阻塞）
+            std::thread([this, tree_to_finalize, file_path, file_size]() {
+                LOG_DEBUG << "[async] background finalize started for " << file_path;
+
+                try {
+                    // 按照net项目中的正确顺序处理
+                    LOG_DEBUG << "[async] flushing for " << file_path;
+                    tree_to_finalize->flush();
+
+                    LOG_DEBUG << "[async] joining for " << file_path;
+                    tree_to_finalize->join();
+
+                    LOG_DEBUG << "[async] getting token for " << file_path;
+                    std::string file_token = tree_to_finalize->get_token();
+
+                    LOG_DEBUG << "[async] got token '" << file_token << "' for " << file_path;
+
+                    if (!file_token.empty() && file_token != "PENDING") {
+                        // 成功获取token，更新文件记录
+                        LOG_DEBUG << "[async] updating file record for " << file_path;
+                        file_manager_.remove(file_path);
+                        file_manager_.addFile(file_path, file_token, file_size);
+                        LOG_INFO << "[async] successfully finalized " << file_path << " with token " << file_token;
+                    } else {
+                        // 失败，移除PENDING记录
+                        LOG_WARNING << "[async] finalize failed for " << file_path;
+                        file_manager_.remove(file_path);
+                    }
+
+                } catch (const std::exception& e) {
+                    LOG_ERROR << "[async] exception during finalize for " << file_path << ": " << e.what();
+                    // 清理失败的文件记录
+                    file_manager_.remove(file_path);
+                } catch (...) {
+                    LOG_ERROR << "[async] unknown exception during finalize for " << file_path;
+                    file_manager_.remove(file_path);
+                }
+
+                // 清理bw_tree对象（按照net项目的做法）
+                delete tree_to_finalize;
+                LOG_DEBUG << "[async] background finalize completed for " << file_path;
+
+            }).detach();
+
+            LOG_DEBUG << "[close] async finalize initiated for fd=" << fd;
+        } else {
+            LOG_ERROR << "[close] bw_tree is null for fd=" << fd;
+            fd_write_wait_map_.erase(write_it);
+            fd_file_size_map_.erase(fd);
+        }
     }
-    auto path_it = fd_map_.find(fd);
+
+    // 清理路径映射
     if (path_it != fd_map_.end()) {
         path_fd_map_.erase(path_it->second);
         fd_map_.erase(path_it);
     }
+
+    LOG_DEBUG << "[close] completed fd=" << fd;
     return 0;
 }
 
 int BwtFSMounter::mkdir(const std::string& path) {
     LOG_DEBUG << "[mkdir] " << path;
-    file_manager_.createDir(path);
+
+    // 确保路径以/开头
+    std::string normalized_path = path;
+    if (!path.empty() && path[0] != '/') {
+        normalized_path = "/" + path;
+    }
+
+    // 确保文件管理器已初始化
+    if (!file_manager_.createDir(normalized_path)) {
+        LOG_ERROR << "Failed to create directory: " << normalized_path;
+        return -EIO;
+    }
+
     return 0;
 }
 
@@ -435,12 +629,15 @@ int BwtFSMounter::rename(const std::string& old_path, const std::string& new_pat
             }
         }
         if (is_rename) {
-            file_manager_.rename(old_path, new_path);
-            LOG_DEBUG << "[rename] Detected as rename operation.";
+            // 这是重命名操作，只需要传递文件名部分
+            std::string old_basename = get_basename(old_path);
+            std::string new_basename = get_basename(new_path);
+            file_manager_.rename(old_path, new_basename);
+            LOG_DEBUG << "[rename] Detected as rename operation: " << old_path << " -> " << new_basename;
             return 0;
         } else {
             file_manager_.move(old_path, new_path);
-            LOG_DEBUG << "[rename] Detected as move operation.";
+            LOG_DEBUG << "[rename] Detected as move operation: " << old_path << " -> " << new_path;
             return 0;
         }
     } else {
@@ -452,8 +649,21 @@ int BwtFSMounter::rename(const std::string& old_path, const std::string& new_pat
 
 bool BwtFSMounter::is_directory(const std::string& path) {
     LOG_DEBUG << "[is_directory] checking: " << path;
-    auto file_node = file_manager_.getFile(path);
-    return file_node.is_dir;
+
+    // 根目录总是目录
+    if (path == "/" || path.empty()) {
+        return true;
+    }
+
+    // 确保路径以/开头
+    std::string normalized_path = path;
+    if (!path.empty() && path[0] != '/') {
+        normalized_path = "/" + path;
+    }
+
+    auto file_node = file_manager_.getFile(normalized_path);
+    // 如果文件不存在，返回false（这可能意味着路径不存在或不是目录）
+    return !file_node.name.empty() && file_node.is_dir;
 }
 
 std::vector<std::string> BwtFSMounter::list_files(){
@@ -468,11 +678,43 @@ std::vector<std::string> BwtFSMounter::list_files(){
 
 std::vector<std::string> BwtFSMounter::list_files_in_dir(const std::string& dir_path) {
     LOG_DEBUG << "[list_files_in_dir] listing files in dir: " << dir_path;
-    auto file_nodes = file_manager_.listDir(dir_path);
     std::vector<std::string> res;
+    std::set<std::string> unique_names; // 用于避免重复文件名
+
+    // 1. 从BwtFS获取普通用户文件
+    auto file_nodes = file_manager_.listDir(dir_path);
     for (auto& node : file_nodes) {
-        res.push_back(node.name);
+        if (unique_names.insert(node.name).second) {
+            res.push_back(node.name);
+            LOG_DEBUG << "[list_files_in_dir] found in BwtFS: " << node.name;
+        }
     }
+
+    // 2. 从memory_fs获取系统临时文件
+    std::string normalized_dir = dir_path;
+    if (normalized_dir.empty()) normalized_dir = "/";
+    if (normalized_dir != "/" && normalized_dir.back() == '/') {
+        normalized_dir = normalized_dir.substr(0, normalized_dir.length() - 1);
+    }
+
+    for (auto& [name, file] : memory_fs_.files_) {
+        std::string normalized_file = name;
+        if (normalized_file != "/" && normalized_file.back() == '/') {
+            normalized_file = normalized_file.substr(0, normalized_file.length() - 1);
+        }
+
+        // 检查文件是否直接在指定目录下
+        std::string parent = memory_fs_.get_parent_dir(normalized_file);
+        if (parent == normalized_dir) {
+            std::string basename = memory_fs_.get_basename(normalized_file);
+            // 只添加系统临时文件，避免重复
+            if (isSystemTempFile(normalized_file) && unique_names.insert(basename).second) {
+                res.push_back(basename);
+                LOG_DEBUG << "[list_files_in_dir] found in memory_fs: " << basename << " (system temp file)";
+            }
+        }
+    }
+
     return res;
 }
 
@@ -525,7 +767,36 @@ bool BwtFSMounter::file_exists(const std::string& path) {
 }
 
 FileNode BwtFSMounter::getFileNode(const std::string& path) {
-    auto file_node = file_manager_.getFile(path);
+    // 确保路径以/开头
+    std::string normalized_path = path;
+    if (!path.empty() && path[0] != '/') {
+        normalized_path = "/" + path;
+    }
+
+    // 首先检查是否是系统临时文件，如果是则从memory_fs获取
+    if (isSystemTempFile(normalized_path)) {
+        LOG_DEBUG << "[getFileNode] getting from memory_fs: " << normalized_path;
+
+        // 检查memory_fs中是否存在该文件
+        auto it = memory_fs_.files_.find(normalized_path);
+        if (it != memory_fs_.files_.end()) {
+            // 在memory_fs中找到文件，返回对应的FileNode
+            FileNode node;
+            node.name = it->second.name;
+            node.token = "memory_fs"; // 标识为内存文件
+            node.file_size = it->second.data.size();
+            node.is_dir = it->second.is_directory;
+            LOG_DEBUG << "[getFileNode] found in memory_fs: " << normalized_path;
+            return node;
+        } else {
+            // memory_fs中也不存在，返回空节点
+            LOG_DEBUG << "[getFileNode] not found in memory_fs: " << normalized_path;
+            return FileNode();
+        }
+    }
+
+    // 普通用户文件，从BwtFS获取
+    auto file_node = file_manager_.getFile(normalized_path);
     return file_node;
 }
 

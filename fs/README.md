@@ -1,13 +1,18 @@
-# BwtFS - 跨平台FUSE文件系统
+# BwtFS FUSE 文件系统 - 混合存储架构
 
-## 概述
+## 🎯 概述
 
-BwtFS 是一个基于FUSE的跨平台文件系统项目，支持三大主流操作系统：
+BwtFS FUSE 文件系统采用创新的**混合存储架构**，智能地将文件分类存储，以优化性能和存储效率：
+
+- **系统临时文件** → 存储在 `memory_fs`（内存中）
+- **用户文件** → 存储在 `BwtFS`（加密存储）
+
+本项目支持三大主流操作系统：
 - **Windows**: WinFSP (Windows File System Proxy)
 - **macOS**: macFUSE 2.9+
 - **Linux**: libfuse3
 
-本项目专注于保护用户隐私，实现反跟踪存储机制和不可恢复的数据访问系统，特别适用于多用户和高机密环境。
+专注于保护用户隐私，实现反跟踪存储机制和不可恢复的数据访问系统。
 
 ## 系统要求
 
@@ -16,7 +21,7 @@ BwtFS 是一个基于FUSE的跨平台文件系统项目，支持三大主流操�
 - Xcode Command Line Tools
 - Homebrew 包管理器
 - CMake 3.10 或更高版本
-- C++17 兼容的编译器 (Clang)
+- C++20 兼容的编译器
 
 ### Windows 开发环境
 - Windows 10 或更高版本
@@ -71,8 +76,7 @@ cmake ..
 # 编译
 make
 
-# 编译完成后，可执行文件位于当前目录
-ls -la myfs
+# 编译完成后，可执行文件位于当前目录的bin目录下
 ```
 
 ### 平台特定输出
@@ -99,11 +103,116 @@ ls -la myfs
 [100%] Linking CXX executable myfs
 ```
 
-## 使用方法
+## 🏗️ 混合存储架构
+
+### 架构设计理念
+
+混合存储架构解决了跨平台文件系统中的关键问题：
+
+1. **系统临时文件污染**：Finder、资源管理器等工具创建大量临时文件
+2. **存储空间浪费**：系统文件占用宝贵的加密存储空间
+3. **性能问题**：系统文件的异步处理导致文件管理器兼容性问题
+
+### 文件分类策略
+
+| 文件类型 | 存储后端 | 特点 | 示例 |
+|---------|---------|------|------|
+| 系统临时文件 | `memory_fs` | 快速访问，占用内存，不占用加密存储空间 | `._.DS_Store`, `Thumbs.db`, `desktop.ini` |
+| 用户文件 | `BwtFS` | 加密存储，隐私保护，抗溯源 | 用户文档、图片、视频等 |
+
+### 跨平台系统文件支持
+
+#### macOS 系统文件
+- `._.*` - 资源分支文件（Resource Fork）
+- `.DS_Store` - 桌面服务存储文件
+- `.TemporaryItems/*` - 临时项目文件夹
+- `.vscode/*` - VS Code 临时文件
+
+#### Windows 系统文件
+- `Thumbs.db` - 缩略图缓存文件
+- `desktop.ini` - 桌面配置文件
+- `~$*` - Office 临时文件
+
+#### 通用开发工具
+- `.vscode/*` - VS Code 临时文件
+- `~$*` - Office 临时文件
+- `.TemporaryItems/*` - 临时项目文件夹
+
+### 技术实现
+
+#### 智能文件分类
+```cpp
+bool isSystemTempFile(const std::string& path) {
+    std::string basename = path.substr(path.find_last_of('/') + 1);
+
+    // macOS系统文件
+    if (basename.find("._") == 0 || basename == ".DS_Store" ||
+        basename.find(".TemporaryItems") == 0) {
+        return true;
+    }
+
+    // Windows系统文件
+    if (basename == "Thumbs.db" || basename == "desktop.ini" ||
+        basename.find("~$") == 0) {
+        return true;
+    }
+
+    return false;
+}
+```
+
+#### 混合读取策略
+```cpp
+FileNode getFileNode(const std::string& path) {
+    if (isSystemTempFile(path)) {
+        // 从 memory_fs 获取
+        return getFromMemoryFS(path);
+    } else {
+        // 从 BwtFS 获取
+        return getFromBwtFS(path);
+    }
+}
+```
+
+#### 统一文件系统接口
+- `create()` - 智能选择存储后端
+- `read()` - 从对应存储读取数据
+- `write()` - 写入到对应存储
+- `list_files_in_dir()` - 合并两个存储的文件列表
+- `remove()` - 从对应存储删除文件
+
+### 架构优势
+
+#### 1. **存储效率提升**
+- 系统临时文件不占用宝贵的加密存储空间
+- 内存访问速度更快，提升系统响应性
+- 减少不必要的加密操作
+
+#### 2. **Finder 兼容性**
+- 系统文件立即可用，无异步延迟
+- 避免了 Finder 显示问题
+- 支持各平台的文件管理器
+
+#### 3. **跨平台支持**
+- 统一处理各操作系统的临时文件
+- 自动识别和分类系统文件
+- 无需手动配置
+
+#### 4. **隐私保护**
+- 用户文件仍然获得 BwtFS 的完整隐私保护
+- 系统文件隔离存储，不影响用户数据安全
+- 混合架构不影响隐私保护特性
+
+#### 5. **透明性**
+- 用户无感知的文件分类
+- 统一的文件系统接口
+- 保持原有的 POSIX 语义
+
+## 🚀 使用方法
 
 ### 快速开始
 
-#### Linux
+#### 1. 使用 MemoryFS（测试模式）
 
 ```bash
 # 1. 编译项目
@@ -112,19 +221,92 @@ cmake ..
 make
 
 # 2. 创建挂载点
-mkdir ~/myfs_mount
+mkdir /tmp/memory_fs
 
-# 3. 挂载文件系统
-./myfs ~/myfs_mount
+# 3. 挂载 MemoryFS（仅内存存储）
+./bwtfs_mount /tmp/memory_fs
 
 # 4. 在新终端中测试
-cd ~/myfs_mount
-echo "Hello BwtFS" > test.txt
-cat test.txt
+cd /tmp/memory_fs
+echo "Hello MemoryFS" > test.txt
+mkdir test_dir
 ls -la
+cat test.txt
 
 # 5. 卸载文件系统
-umount ~/myfs_mount
+umount /tmp/memory_fs  # Linux
+# 或在 macOS 上: umount /tmp/memory_fs
+```
+
+#### 2. 使用 BwtFS 混合存储（推荐）
+
+```bash
+# 1. 创建 BwtFS 系统文件（在项目根目录）
+cd ../../
+mkdir -p build && cd build
+cmake ..
+make
+./bwtfs_cmd
+
+# 2. 创建 BwtFS 系统文件
+# 根据提示输入：
+# - 文件系统路径：./test.bwt
+# - 文件系统大小：1024（MB）
+
+# 3. 挂载混合存储文件系统
+mkdir /tmp/bwtfs
+./bwtfs_mount ../../test.bwt /tmp/bwtfs
+
+# 4. 在新终端中测试混合存储
+cd /tmp/bwtfs
+
+# 用户文件（将加密存储到 BwtFS）
+echo "用户重要数据" > user_document.txt
+cp ~/photo.jpg .
+mkdir user_files
+
+# 系统临时文件（自动路由到内存存储）
+# 这些文件会由 Finder/系统工具自动创建
+# .DS_Store, Thumbs.db, ._*, 等
+
+# 查看文件列表
+ls -la
+# 可以看到用户文件和系统临时文件都正常显示
+
+# 5. 卸载文件系统
+umount /tmp/bwtfs
+```
+
+#### 3. Linux 系统完整示例
+
+```bash
+# 1. 编译项目
+mkdir build && cd build
+cmake ..
+make
+
+# 2. 创建挂载点
+mkdir ~/bwtfs_mount
+
+# 3. 挂载混合存储文件系统
+./bwtfs_mount ~/bwtfs_mount
+
+# 4. 测试用户文件（BwtFS 加密存储）
+cd ~/bwtfs_mount
+echo "Hello BwtFS" > user_file.txt
+mkdir user_directory
+cp ~/Documents/important.pdf .
+
+# 5. 观察系统文件自动路由到内存存储
+# 使用文件管理器访问目录，会自动创建系统临时文件
+# 这些文件不会占用 BwtFS 存储空间
+
+# 6. 验证存储效果
+ls -la
+# 用户文件和系统文件都可见，但存储在不同的后端
+
+# 7. 卸载文件系统
+umount ~/bwtfs_mount
 ```
 
 #### Windows
@@ -140,7 +322,7 @@ cmake ..
 
 # 3. 挂载文件系统
 # windows环境下作为磁盘进行挂载
-./myfs X:
+./bwtfs_mount X:
 
 # 4. 卸载文件系统
 # 退出程序即可卸载
@@ -186,22 +368,6 @@ cmake ..
    services.msc  # 检查WinFsp服务状态
    ```
 
-## 项目结构
-
-```
-BwtFS/fs/
-├── CMakeLists.txt          # 跨平台构建配置
-├── main.cpp                # FUSE操作实现和适配层
-├── core.h                  # 文件系统核心接口
-├── core.cpp                # 文件系统核心实现
-├── demo.c                  # macOS FUSE参考实现
-├── README.md               # 本文档
-└── build/                  # 编译输出目录
-    ├── CMakeCache.txt
-    ├── Makefile
-    └── myfs               # 可执行文件
-```
-
 ## 开发指南
 
 ### 添加新功能
@@ -243,5 +409,5 @@ BwtFS/fs/
 ### 编译选项
 - **Release模式**: 默认开启优化 (`-O2`)
 - **Debug模式**: 可启用调试信息和断言
-- **C++标准**: C++17 (主要项目) / C++20 (FUSE组件)
+- **C++标准**:  C++20
 - **警告级别**: 启用常用警告和静态分析

@@ -16,6 +16,7 @@
 
 #include <cstring>
 #include <iostream>
+#include <unistd.h>  // for getcwd
 #include "core.h"
 
 // -------- MemoryFS 实现部分 --------
@@ -341,6 +342,15 @@ static struct fuse_operations memory_fs_oper = {};
 // -------- BwtFS 实现部分 --------
 static BwtFSMounter bwtfs;
 
+// BwtFS采用简单策略，不实现复杂的xattr操作（参考memory_fs的成功做法）
+
+static int bwtfs_chmod_macos_chown_adapter(const char *path, uid_t uid, gid_t gid, struct fuse_file_info *fi) {
+    // macOS下的chown适配器
+    LOG_DEBUG << "[chown] " << path << " uid=" << uid << " gid=" << gid;
+    // BwtFS不支持所有者变更，直接返回成功
+    return 0;
+}
+
 # ifdef _WIN32
     static int bwtfs_getattr(const char *path, struct fuse_stat *stbuf, struct fuse_file_info *fi)
 #elif defined(__APPLE__)
@@ -357,9 +367,27 @@ static BwtFSMounter bwtfs;
         stbuf->st_nlink = 2;
         return 0;
     }
+
+    // 过滤系统文件，但只过滤会导致问题的最关键文件
+    std::string path_str(path);
+    std::string basename = path_str.substr(path_str.find_last_of('/') + 1);
+
+    // 只过滤最容易导致问题的文件
+    // if (basename.find("._") == 0) {
+    //     // macOS的资源分支文件
+    //     LOG_DEBUG << "[getattr] filtered resource fork file: " << path;
+    //     return -ENOENT;
+    // }
+
+    // if (basename == ".DS_Store") {
+    //     // 暂时过滤DS_Store直到我们解决异步写入问题
+    //     LOG_DEBUG << "[getattr] filtered DS_Store file: " << path;
+    //     return -ENOENT;
+    // }
+
     FileNode it = bwtfs.getFileNode(path);
     if (it.name.empty() || it.name == "") {
-        return -ENOENT; 
+        return -ENOENT;
     }
     if (it.is_dir) {
         stbuf->st_mode = S_IFDIR | 0777;
@@ -437,6 +465,9 @@ static int bwtfs_create_fuse(const char* path, mode_t mode, struct fuse_file_inf
 static int bwtfs_create_fuse(const char* path, mode_t mode, struct fuse_file_info *fi) {
     (void)mode; // 避免未使用参数警告，目前我们的简单实现忽略mode参数
 #endif
+
+    // BwtFS采用与memory_fs相同的简单策略，不过滤系统文件以确保Finder兼容性
+
     LOG_DEBUG << "[create] " << path;
     // 首先尝试打开文件，如果文件不存在则创建
     int fd = bwtfs.open(path);  // open函数内部会自动创建不存在的文件
@@ -514,7 +545,7 @@ static int bwtfs_statfs(const char *path, struct statvfs *stbuf)
 static int bwtfs_statfs(const char *path, struct statvfs *stbuf)
 #endif
 {
-    LOG_DEBUG << "[statfs] " << path;
+    // LOG_DEBUG << "[statfs] " << path;
     memset(stbuf, 0, sizeof(*stbuf));
 
     SystemInfo sys_info = bwtfs.getSystemInfo();
@@ -670,6 +701,7 @@ int main(int argc, char *argv[]){
     }
     if (argc == 2) {
         // 仅提供了挂载点参数，使用memory_fs
+        LOG_INFO << "Using memory_fs mode";
         #ifdef _WIN32
             // Windows WinFSP API
             memory_fs_oper.getattr = memory_fs_getattr;    // 获取文件属性
@@ -721,10 +753,19 @@ int main(int argc, char *argv[]){
         #endif
     }else{
         // 提供了挂载点和Bwtfs系统文件路径参数，使用bwtfs
-        std::string bwtfs_path = argv[2];
         try{
             std::string bwtfs_file_path = std::string(argv[2]);
             std::string bwtfs_dir_path = std::string(argv[3]);
+
+            // 确保使用绝对路径
+            if (!bwtfs_dir_path.empty() && bwtfs_dir_path[0] != '/') {
+                char* cwd = getcwd(nullptr, 0);
+                if (cwd) {
+                    bwtfs_dir_path = std::string(cwd) + "/" + bwtfs_dir_path;
+                    free(cwd);
+                }
+            }
+
             LOG_INFO << "Initializing BwtFS with file: " << bwtfs_file_path
                        << " and dir: " << bwtfs_dir_path;
             bwtfs.init(bwtfs_file_path, bwtfs_dir_path);
@@ -734,7 +775,7 @@ int main(int argc, char *argv[]){
         }
         #ifdef _WIN32
             // Windows WinFSP API
-            bwtfs_oper.getattr = btwfs_getattr;    // 获取文件属性
+            bwtfs_oper.getattr = bwtfs_getattr;    // 获取文件属性
             bwtfs_oper.readdir = bwtfs_readdir;    // 读取目录内容
             bwtfs_oper.open    = bwtfs_open_fuse;  // 打开文件
             bwtfs_oper.read    = bwtfs_read_fuse;  // 读取文件内容
@@ -764,6 +805,7 @@ int main(int argc, char *argv[]){
             bwtfs_oper.chmod   = bwtfs_chmod_macos_adapter;  // 修改文件权限（适配函数）
             bwtfs_oper.chown   = bwtfs_chown_macos_chown_adapter;  // 修改文件所有者（适配函数）
             bwtfs_oper.access  = bwtfs_access_fuse; // 检查文件访问权限
+            // BwtFS不实现xattr操作，采用与memory_fs相同的简单策略以避免Finder兼容性问题
         #else
             // Linux libfuse3 API
             bwtfs_oper.getattr = bwtfs_getattr;    // 获取文件属性
