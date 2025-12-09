@@ -639,6 +639,37 @@ static int bwtfs_chown_fuse(const char *path, uid_t uid, gid_t gid, struct fuse_
     LOG_DEBUG << "[chown] " << path;
     return 0;
 }
+
+// macOS扩展属性处理 - 强制返回ENOTSUP以防止fcopyfile使用不兼容的路径
+// macOS FUSE 2.9 API 需要额外的 position 参数
+static int bwtfs_setxattr(const char *path, const char *name, const char *value, size_t size, int flags, uint32_t position) {
+    LOG_DEBUG << "[setxattr] " << path << " name=" << name << " position=" << position;
+    // 强制返回ENOTSUP，告知系统我们不支持扩展属性
+    // 这将迫使fcopyfile回退到标准的read/write路径
+    (void)path; (void)name; (void)value; (void)size; (void)flags; (void)position;
+    return -ENOTSUP;
+}
+
+static int bwtfs_getxattr(const char *path, const char *name, char *value, size_t size, uint32_t position) {
+    LOG_DEBUG << "[getxattr] " << path << " name=" << name << " position=" << position;
+    // 强制返回ENOTSUP
+    (void)path; (void)name; (void)value; (void)size; (void)position;
+    return -ENOTSUP;
+}
+
+static int bwtfs_listxattr(const char *path, char *list, size_t size) {
+    LOG_DEBUG << "[listxattr] " << path;
+    // 强制返回ENOTSUP
+    (void)path; (void)list; (void)size;
+    return -ENOTSUP;
+}
+
+static int bwtfs_removexattr(const char *path, const char *name) {
+    LOG_DEBUG << "[removexattr] " << path << " name=" << name;
+    // 强制返回ENOTSUP
+    (void)path; (void)name;
+    return -ENOTSUP;
+}
 #else
     // Linux使用标准mode_t类型
 static int bwtfs_mkdir_fuse(const char *path, mode_t mode) {
@@ -805,7 +836,11 @@ int main(int argc, char *argv[]){
             bwtfs_oper.chmod   = bwtfs_chmod_macos_adapter;  // 修改文件权限（适配函数）
             bwtfs_oper.chown   = bwtfs_chown_macos_chown_adapter;  // 修改文件所有者（适配函数）
             bwtfs_oper.access  = bwtfs_access_fuse; // 检查文件访问权限
-            // BwtFS不实现xattr操作，采用与memory_fs相同的简单策略以避免Finder兼容性问题
+            // 添加扩展属性处理，强制返回ENOTSUP以防止fcopyfile问题
+            bwtfs_oper.setxattr = bwtfs_setxattr;  // 设置扩展属性
+            bwtfs_oper.getxattr = bwtfs_getxattr;  // 获取扩展属性
+            bwtfs_oper.listxattr = bwtfs_listxattr;  // 列出扩展属性
+            bwtfs_oper.removexattr = bwtfs_removexattr;  // 删除扩展属性
         #else
             // Linux libfuse3 API
             bwtfs_oper.getattr = bwtfs_getattr;    // 获取文件属性

@@ -319,6 +319,13 @@ int BwtFSMounter::create(const std::string& path) {
         normalized_path = "/" + path;
     }
 
+    // 检查文件是否已经存在
+    std::string existing_token = file_manager_.getFileToken(normalized_path);
+    if (!existing_token.empty() && existing_token != "PENDING") {
+        LOG_DEBUG << "[create] file already exists: " << normalized_path;
+        return -EEXIST;  // 文件已存在
+    }
+
     // 创建文件描述符
     int fd = next_fd_++;
     fd_map_[fd] = normalized_path;
@@ -352,6 +359,8 @@ int BwtFSMounter::create(const std::string& path) {
         } catch (const std::exception& e) {
             LOG_ERROR << "[create] failed to create bw_tree: " << e.what();
             fd_write_wait_map_.erase(fd);
+            fd_map_.erase(fd);
+            path_fd_map_.erase(normalized_path);
             return -EIO;
         }
 
@@ -439,19 +448,36 @@ int BwtFSMounter::read(int fd, char* buf, size_t size, off_t offset) {
 
 int BwtFSMounter::write(int fd, const char* buf, size_t size){
     LOG_DEBUG << "[write] requested fd=" << fd << " size=" << size;
+
+    // 防止0字节写入，这可能是FUSE的flush操作
+    if (size == 0) {
+        LOG_DEBUG << "[write] ignoring 0-byte write for fd=" << fd;
+        return 0;
+    }
+
     auto it = fd_map_.find(fd);
     if (it == fd_map_.end()) {
         LOG_ERROR << "[write] Invalid fd map entry for fd=" << fd;
         return -EBADF;
     }
 
-    auto tree_it = fd_write_wait_map_.find(fd);
-    if (tree_it == fd_write_wait_map_.end()) {
+    // 检查是否是系统临时文件（内存文件）
+    auto tree_it = fd_tree_map_.find(fd);
+    if (tree_it != fd_tree_map_.end() && tree_it->second == nullptr) {
+        // 这是内存文件，使用memory_fs写入
+        std::string path = it->second;
+        LOG_DEBUG << "[write] writing to memory file: " << path;
+        return memory_fs_.write(fd, buf, size);
+    }
+
+    // 普通用户文件，使用BwtFS写入
+    auto write_it = fd_write_wait_map_.find(fd);
+    if (write_it == fd_write_wait_map_.end()) {
         LOG_ERROR << "[write] No bw_tree found for fd=" << fd;
         return -EBADF;
     }
 
-    BwtFS::Node::bw_tree* tree = tree_it->second;
+    BwtFS::Node::bw_tree* tree = write_it->second;
     if (!tree) {
         LOG_ERROR << "[write] bw_tree is null for fd=" << fd;
         return -EIO;
@@ -471,7 +497,23 @@ int BwtFSMounter::write(int fd, const char* buf, size_t size){
 
 int BwtFSMounter::write(int fd, const char* buf, size_t size, off_t offset) {
     LOG_DEBUG << "[write] requested fd=" << fd << " offset=" << offset << " size=" << size;
-    // 目前不支持偏移写入，直接调用不带偏移的写入函数
+
+    auto it = fd_map_.find(fd);
+    if (it == fd_map_.end()) {
+        LOG_ERROR << "[write] Invalid fd map entry for fd=" << fd;
+        return -EBADF;
+    }
+
+    // 检查是否是系统临时文件（内存文件）
+    auto tree_it = fd_tree_map_.find(fd);
+    if (tree_it != fd_tree_map_.end() && tree_it->second == nullptr) {
+        // 这是内存文件，使用memory_fs写入
+        std::string path = it->second;
+        LOG_DEBUG << "[write] writing to memory file with offset: " << path;
+        return memory_fs_.write(fd, buf, size, offset);
+    }
+
+    // 普通用户文件，BwtFS不支持偏移写入，直接调用不带偏移的写入函数
     return write(fd, buf, size);
 }
 
@@ -518,51 +560,60 @@ int BwtFSMounter::close(int fd){
             fd_write_wait_map_.erase(write_it);
             fd_file_size_map_.erase(fd);
 
-            // 启动后台线程处理flush/join（避免在FUSE回调中阻塞）
-            std::thread([this, tree_to_finalize, file_path, file_size]() {
-                LOG_DEBUG << "[async] background finalize started for " << file_path;
+            // 检查是否有实际数据写入，避免对空文件进行flush/join操作
+            if (file_size == 0) {
+                LOG_DEBUG << "[close] file is empty (0 bytes), skipping finalize for " << file_path;
+                // 直接删除空的文件记录
+                file_manager_.remove(file_path);
+                delete tree_to_finalize;
+                LOG_DEBUG << "[close] empty file cleanup completed for " << file_path;
+            } else {
+                // 启动后台线程处理flush/join（避免在FUSE回调中阻塞）
+                std::thread([this, tree_to_finalize, file_path, file_size]() {
+                    LOG_DEBUG << "[async] background finalize started for " << file_path << " size=" << file_size;
 
-                try {
-                    // 按照net项目中的正确顺序处理
-                    LOG_DEBUG << "[async] flushing for " << file_path;
-                    tree_to_finalize->flush();
+                    try {
+                        // 按照net项目中的正确顺序处理
+                        LOG_DEBUG << "[async] flushing for " << file_path;
+                        tree_to_finalize->flush();
 
-                    LOG_DEBUG << "[async] joining for " << file_path;
-                    tree_to_finalize->join();
+                        LOG_DEBUG << "[async] joining for " << file_path;
+                        tree_to_finalize->join();
 
-                    LOG_DEBUG << "[async] getting token for " << file_path;
-                    std::string file_token = tree_to_finalize->get_token();
+                        LOG_DEBUG << "[async] getting token for " << file_path;
+                        std::string file_token = tree_to_finalize->get_token();
 
-                    LOG_DEBUG << "[async] got token '" << file_token << "' for " << file_path;
+                        LOG_DEBUG << "[async] got token '" << file_token << "' for " << file_path;
 
-                    if (!file_token.empty() && file_token != "PENDING") {
-                        // 成功获取token，更新文件记录
-                        LOG_DEBUG << "[async] updating file record for " << file_path;
+                        if (!file_token.empty() && file_token != "PENDING") {
+                            // 成功获取token，更新文件记录
+                            LOG_DEBUG << "[async] updating file record for " << file_path;
+                            file_manager_.remove(file_path);
+                            file_manager_.addFile(file_path, file_token, file_size);
+                            LOG_INFO << "[async] successfully finalized " << file_path << " with token " << file_token;
+                        } else {
+                            // 失败，移除PENDING记录
+                            LOG_WARNING << "[async] finalize failed for " << file_path;
+                            file_manager_.remove(file_path);
+                        }
+
+                    } catch (const std::exception& e) {
+                        LOG_ERROR << "[async] exception during finalize for " << file_path << ": " << e.what();
+                        // 清理失败的文件记录
                         file_manager_.remove(file_path);
-                        file_manager_.addFile(file_path, file_token, file_size);
-                        LOG_INFO << "[async] successfully finalized " << file_path << " with token " << file_token;
-                    } else {
-                        // 失败，移除PENDING记录
-                        LOG_WARNING << "[async] finalize failed for " << file_path;
+                    } catch (...) {
+                        LOG_ERROR << "[async] unknown exception during finalize for " << file_path;
                         file_manager_.remove(file_path);
                     }
 
-                } catch (const std::exception& e) {
-                    LOG_ERROR << "[async] exception during finalize for " << file_path << ": " << e.what();
-                    // 清理失败的文件记录
-                    file_manager_.remove(file_path);
-                } catch (...) {
-                    LOG_ERROR << "[async] unknown exception during finalize for " << file_path;
-                    file_manager_.remove(file_path);
-                }
+                    // 清理bw_tree对象（按照net项目的做法）
+                    delete tree_to_finalize;
+                    LOG_DEBUG << "[async] background finalize completed for " << file_path;
 
-                // 清理bw_tree对象（按照net项目的做法）
-                delete tree_to_finalize;
-                LOG_DEBUG << "[async] background finalize completed for " << file_path;
+                }).detach();
 
-            }).detach();
-
-            LOG_DEBUG << "[close] async finalize initiated for fd=" << fd;
+                LOG_DEBUG << "[close] async finalize initiated for fd=" << fd;
+            }
         } else {
             LOG_ERROR << "[close] bw_tree is null for fd=" << fd;
             fd_write_wait_map_.erase(write_it);
