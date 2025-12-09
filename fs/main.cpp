@@ -359,7 +359,7 @@ static int bwtfs_chmod_macos_chown_adapter(const char *path, uid_t uid, gid_t gi
     static int bwtfs_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi)
 #endif
 {
-    LOG_DEBUG << "[getattr] " << path;
+    // LOG_DEBUG << "[getattr] " << path;
     memset(stbuf, 0, sizeof(struct stat));
 
     if (strcmp(path, "/") == 0 || strcmp(path, "") == 0) {
@@ -428,7 +428,7 @@ static int bwtfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
         filler(buf, name.c_str(), nullptr, 0, FUSE_FILL_DIR_PLUS);
 #elif defined(__APPLE__)
     // macOS FUSE 2.9 API - filler函数只有4个参数
-    LOG_DEBUG << "[readdir] " << path;
+    // LOG_DEBUG << "[readdir] " << path;
     filler(buf, ".", nullptr, 0);
     filler(buf, "..", nullptr, 0);
     for (auto &name : bwtfs.list_files_in_dir(path))

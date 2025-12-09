@@ -677,7 +677,7 @@ std::vector<std::string> BwtFSMounter::list_files(){
 }
 
 std::vector<std::string> BwtFSMounter::list_files_in_dir(const std::string& dir_path) {
-    LOG_DEBUG << "[list_files_in_dir] listing files in dir: " << dir_path;
+    // LOG_DEBUG << "[list_files_in_dir] listing files in dir: " << dir_path;
     std::vector<std::string> res;
     std::set<std::string> unique_names; // 用于避免重复文件名
 
@@ -686,7 +686,7 @@ std::vector<std::string> BwtFSMounter::list_files_in_dir(const std::string& dir_
     for (auto& node : file_nodes) {
         if (unique_names.insert(node.name).second) {
             res.push_back(node.name);
-            LOG_DEBUG << "[list_files_in_dir] found in BwtFS: " << node.name;
+            // LOG_DEBUG << "[list_files_in_dir] found in BwtFS: " << node.name;
         }
     }
 

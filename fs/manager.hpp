@@ -111,11 +111,11 @@ private:
     json* getNodeAtPath(const std::string& path, bool create_parents = false) {
         std::vector<std::string> components = splitPath(path);
 
-        LOG_DEBUG << "getNodeAtPath path: '" << path << "' components: " << components.size();
+        // LOG_DEBUG << "getNodeAtPath path: '" << path << "' components: " << components.size();
 
         // 空路径或根路径
         if (components.empty()) {
-            LOG_DEBUG << "getNodeAtPath returning root for empty path";
+            // LOG_DEBUG << "getNodeAtPath returning root for empty path";
             return &root_json;
         }
 
@@ -123,7 +123,7 @@ private:
 
         for (size_t i = 0; i < components.size(); i++) {
             const std::string& component = components[i];
-            LOG_DEBUG << "getNodeAtPath processing component: '" << component << "' (index " << i << ")";
+            // LOG_DEBUG << "getNodeAtPath processing component: '" << component << "' (index " << i << ")";
 
             // 如果节点不存在
             if (!current->contains(component)) {
@@ -138,15 +138,15 @@ private:
                     new_dir["children"] = json::object();
                     (*current)[component] = new_dir;
                     current = &(*current)[component]["children"];
-                    LOG_DEBUG << "Created parent directory and moved to children";
+                    // LOG_DEBUG << "Created parent directory and moved to children";
                 } else {
-                    LOG_DEBUG << "Node not found and not creating parents";
+                    // LOG_DEBUG << "Node not found and not creating parents";
                     return nullptr;  // 节点不存在
                 }
             } else {
                 // 节点存在，解析其is_dir
                 json& node = (*current)[component];
-                LOG_DEBUG << "Found existing node: " << component << " is_dir: " << (node.contains("is_dir") ? node["is_dir"].get<bool>() : false);
+                // LOG_DEBUG << "Found existing node: " << component << " is_dir: " << (node.contains("is_dir") ? node["is_dir"].get<bool>() : false);
 
                 if (!node.contains("is_dir")) {
                     LOG_ERROR << "Invalid node structure (no is_dir): " << component;
@@ -163,7 +163,7 @@ private:
                             return nullptr;
                         }
                         current = &node["children"];
-                        LOG_DEBUG << "Moved to children of: " << component;
+                        // LOG_DEBUG << "Moved to children of: " << component;
                     } else {
                         // 最后一个组件，返回目录节点本身
                         current = &node;
@@ -181,14 +181,14 @@ private:
             }
         }
 
-        LOG_DEBUG << "getNodeAtPath returning node for path: " << path;
+        // LOG_DEBUG << "getNodeAtPath returning node for path: " << path;
         return current; // 返回最终节点
     }
     
     // 获取父节点和子节点名
     std::pair<json*, std::string> getParentAndName(const std::string& path) {
         std::vector<std::string> components = splitPath(path);
-        LOG_DEBUG << "Getting parent and name for path: " << path << ", components size: " << components.size();
+        // LOG_DEBUG << "Getting parent and name for path: " << path << ", components size: " << components.size();
         if (components.empty()) {
             return {&root_json, ""};  // 根路径
         }
@@ -205,7 +205,7 @@ private:
             parent_path = parent_path.substr(0, parent_path.length() - 1);
         }
 
-        LOG_DEBUG << "Parent path: '" << parent_path << "', name: '" << name << "'";
+        // LOG_DEBUG << "Parent path: '" << parent_path << "', name: '" << name << "'";
 
         // 如果是根目录下的文件，直接返回根节点
         json* parent = parent_path.empty() ? &root_json : getNodeAtPath(parent_path);
@@ -275,7 +275,7 @@ public:
             file << json_content << std::flush;
             file.close();
 
-            LOG_DEBUG << "JSON content written: " << json_content;
+            // LOG_DEBUG << "JSON content written: " << json_content;
 
             // 验证文件是否被正确写入
             std::ifstream verify_file(filename);
@@ -294,7 +294,7 @@ public:
             }
 
             LOG_DEBUG << "成功保存JSON文件: " << filename << " (大小: " << content.size() << " 字节)";
-            LOG_DEBUG << "文件内容: " << content;
+            // LOG_DEBUG << "文件内容: " << content;
             return true;
         } catch (const std::exception& e) {
             LOG_ERROR << "保存JSON文件失败: " << e.what();
@@ -305,11 +305,11 @@ public:
     // 列出目录内容（惰性解析）
     std::vector<FileNode> listDir(const std::string& path) {
         std::vector<FileNode> result;
-        LOG_DEBUG << "listDir called for path: '" << path << "'";
+        // LOG_DEBUG << "listDir called for path: '" << path << "'";
 
         // 特殊处理根目录
         if (path == "/" || path.empty()) {
-            LOG_DEBUG << "Handling root directory listing";
+            // LOG_DEBUG << "Handling root directory listing";
             // 根目录直接遍历root_json的顶层元素
             for (auto it = root_json.begin(); it != root_json.end(); ++it) {
                 const std::string& name = it.key();
@@ -317,7 +317,7 @@ public:
                     bool is_dir = it.value()["is_dir"];
                     std::string token = is_dir ? "" : (it.value().contains("token") ? it.value()["token"] : "");
                     size_t file_size = is_dir ? 0 : (it.value().contains("file_size") ? it.value()["file_size"].get<size_t>() : 0);
-                    LOG_DEBUG << "Found root item: " << name << " (dir: " << is_dir << ")";
+                    // LOG_DEBUG << "Found root item: " << name << " (dir: " << is_dir << ")";
                     result.emplace_back(name, is_dir, token, file_size, &it.value());
                 }
             }
@@ -359,7 +359,7 @@ public:
     
     // 获取文件信息
     FileNode getFile(const std::string& path) {
-        LOG_DEBUG << "getFile called for path: '" << path << "'";
+        // LOG_DEBUG << "getFile called for path: '" << path << "'";
 
         // 特殊处理根路径
         if (path == "/" || path.empty()) {
@@ -367,7 +367,7 @@ public:
         }
 
         auto [parent, name] = getParentAndName(path);
-        LOG_DEBUG << "getFile - parent: " << (parent ? "valid" : "null") << ", name: '" << name << "'";
+        // LOG_DEBUG << "getFile - parent: " << (parent ? "valid" : "null") << ", name: '" << name << "'";
 
         if (!parent || name.empty()) {
             LOG_ERROR << "文件不存在: " << path;
@@ -716,7 +716,7 @@ public:
                            std::istreambuf_iterator<char>());
         file.close();
 
-        LOG_DEBUG << "JSON file content: '" << content << "' (size: " << content.size() << " bytes)";
+        LOG_DEBUG << "JSON file (size: " << content.size() << " bytes)";
 
         if (content.empty()) {
             LOG_INFO << "JSON file is empty: " << file_path;
@@ -725,7 +725,7 @@ public:
 
         try {
             json test_json = json::parse(content);
-            LOG_DEBUG << "JSON file is valid, size: " << content.size() << " bytes";
+            // LOG_DEBUG << "JSON file is valid, size: " << content.size() << " bytes";
             return true;
         } catch (const json::parse_error& e) {
             LOG_ERROR << "JSON file is malformed: " << e.what() << " Content: " << content;
