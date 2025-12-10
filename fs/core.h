@@ -45,7 +45,8 @@ class BwtFSMounter {
         FileManager file_manager_;
         MemoryFS memory_fs_;  // 用于存储系统临时文件的内存文件系统
         std::unordered_map<int, std::string> fd_map_;   // 文件描述符 -> 文件路径
-        std::unordered_map<std::string, int> path_fd_map_; // 文件路径 -> 文件描述符
+        std::unordered_map<std::string, int> path_fd_map_; // 文件路径 -> 主文件描述符
+        std::unordered_map<std::string, int> path_ref_count_; // 文件路径 -> 引用计数
         std::unordered_map<int, BwtFS::Node::bw_tree*> fd_tree_map_; // 文件描述符 -> bw_tree对象
         // std::unordered_map<int, BwtFS::Node::bw_tree*> fd_write_wait_map_; // 文件描述符 -> 写入用bw_tree对象
         // std::unordered_map<int, size_t> fd_file_size_map_; // 文件描述符 -> 文件大小
@@ -132,5 +133,6 @@ class BwtFSMounter {
         bool file_exists(const std::string& path);
         FileNode getFileNode(const std::string& path);
         SystemInfo getSystemInfo();
+        void cleanupFdMappings(int fd);
 };
 #endif // MY_FS_CORE_H

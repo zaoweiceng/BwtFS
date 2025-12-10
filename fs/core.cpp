@@ -292,8 +292,24 @@ int BwtFSMounter::open(const std::string& path, int flags /* = O_RDONLY */){
     if (path_fd_map_.find(normalized_path) != path_fd_map_.end()) {
         // 文件已经打开，返回已有的文件描述符
         int existing_fd = path_fd_map_[normalized_path];
-        LOG_DEBUG << "[open] " << normalized_path << " already opened -> fd=" << existing_fd;
-        return existing_fd;
+        // 验证 fd 映射是否正确
+        auto fd_it = fd_map_.find(existing_fd);
+        if (fd_it != fd_map_.end() && fd_it->second == normalized_path) {
+            LOG_DEBUG << "[open] " << normalized_path << " already opened -> fd=" << existing_fd;
+            // 增加引用计数
+            path_ref_count_[normalized_path]++;
+            return existing_fd;
+        } else {
+            // fd 映射不一致，清理并重新分配
+            LOG_WARNING << "[open] fd mapping inconsistency detected for " << normalized_path << ", cleaning up";
+            path_fd_map_.erase(normalized_path);
+            if (fd_it != fd_map_.end()) {
+                fd_map_.erase(fd_it);
+            }
+            if (path_ref_count_.find(normalized_path) != path_ref_count_.end()) {
+                path_ref_count_.erase(normalized_path);
+            }
+        }
     }
 
     // 检查文件是否存在
@@ -339,7 +355,18 @@ int BwtFSMounter::open(const std::string& path, int flags /* = O_RDONLY */){
         int fd = next_fd_++;
         fd_map_[fd] = normalized_path;
         fd_to_memory_fd_map_[fd] = memory_fd;
-        path_fd_map_[normalized_path] = fd;
+
+        // 处理引用计数
+        auto ref_it = path_ref_count_.find(normalized_path);
+        if (ref_it == path_ref_count_.end()) {
+            // 第一个打开此文件的fd
+            path_ref_count_[normalized_path] = 1;
+            path_fd_map_[normalized_path] = fd;  // 记录主fd
+        } else {
+            // 文件已被打开，增加引用计数
+            path_ref_count_[normalized_path]++;
+            // path_fd_map保持指向第一个fd
+        }
 
         LOG_DEBUG << "[open] opened from memory_fs " << normalized_path << " -> fd=" << fd;
         return fd;
@@ -447,6 +474,7 @@ int BwtFSMounter::create(const std::string& path) {
     if (!file_manager_.addFile(normalized_path, "memory", 0)) {
         LOG_ERROR << "[create] failed to add file to file_manager: " << normalized_path;
         memory_fs_.close(memory_fd);
+        // 手动清理所有映射，因为create失败不需要引用计数
         fd_map_.erase(fd);
         path_fd_map_.erase(normalized_path);
         fd_to_memory_fd_map_.erase(fd);
@@ -454,7 +482,7 @@ int BwtFSMounter::create(const std::string& path) {
     }
 
     LOG_DEBUG << "[create] successfully created in memory_fs: " << normalized_path << " -> fd=" << fd;
-    return 0;
+    return fd;
 }
 
 int BwtFSMounter::read(int fd, char* buf, size_t size){
@@ -570,12 +598,22 @@ int BwtFSMounter::write(int fd, const char* buf, size_t size){
         // 文件在memory_fs中，直接写入
         LOG_INFO << "[write] writing to memory file, fd=" << fd << " size=" << size;
         auto memory_fd_it = fd_to_memory_fd_map_.find(fd);
-        if (memory_fd_it == fd_to_memory_fd_map_.end()) {
-            LOG_ERROR << "[write] No memory_fd found for fd=" << fd;
-            return -EBADF;
+
+        int memory_fd;
+        if (memory_fd_it == fd_to_memory_fd_map_.end() || memory_fd_it->second == -1) {
+            // 文件被关闭了，重新打开
+            LOG_INFO << "[write] reopening closed memory file: " << file_path;
+            memory_fd = memory_fs_.open(file_path);
+            if (memory_fd < 0) {
+                LOG_ERROR << "[write] failed to reopen memory file: " << file_path;
+                return -EIO;
+            }
+            // 更新映射
+            fd_to_memory_fd_map_[fd] = memory_fd;
+        } else {
+            memory_fd = memory_fd_it->second;
         }
 
-        int memory_fd = memory_fd_it->second;
         auto write_size = memory_fs_.write(memory_fd, buf, size);
 
         // 更新文件管理器中的文件大小
@@ -721,7 +759,9 @@ int BwtFSMounter::write(int fd, const char* buf, size_t size, off_t offset) {
 
     // 所有写入操作都应暂存到memory_fs
     std::string file_path = it->second;
+    LOG_DEBUG << "[write] looking up token for path: " << file_path;
     auto file_token = file_manager_.getFileToken(file_path);
+    LOG_DEBUG << "[write] got token: '" << file_token << "' for path: " << file_path;
 
     if (file_token == "memory") {
         // 文件在memory_fs中，支持偏移写入
@@ -887,10 +927,29 @@ int BwtFSMounter::remove(const std::string& path){
         // 内存文件，直接从memory_fs删除
         return memory_fs_.remove(path);
     }
-    BwtFS::Node::bw_tree tree(file_token, true);
-    tree.delete_file();
-    file_manager_.remove(path);
-    return 0;
+
+    // 验证token有效性，避免损坏的token导致BwtFS错误
+    if (file_token.empty() ||
+        file_token.find('*') != std::string::npos ||
+        file_token.find('-') != std::string::npos ||
+        file_token.length() <= 10) {
+        LOG_ERROR << "[remove] invalid token, cannot safely delete: " << path << " token=" << file_token;
+        file_manager_.remove(path);  // 至少从元数据中删除
+        return -1;
+    }
+
+    try {
+        BwtFS::Node::bw_tree tree(file_token, true);
+        tree.delete_file();
+        file_manager_.remove(path);
+        LOG_INFO << "[remove] successfully deleted BwtFS file: " << path;
+        return 0;
+    } catch (const std::exception& e) {
+        LOG_ERROR << "[remove] failed to delete BwtFS file " << path << ": " << e.what();
+        // 即使删除失败，也要从元数据中清理记录
+        file_manager_.remove(path);
+        return -1;
+    }
 }
 
 int BwtFSMounter::close(int fd){
@@ -908,11 +967,8 @@ int BwtFSMounter::close(int fd){
         delete it->second;
         fd_tree_map_.erase(it);
 
-        // 清理相关映射
-        if (path_it != fd_map_.end()) {
-            path_fd_map_.erase(path_it->second);
-            fd_map_.erase(path_it);
-        }
+        // 使用引用计数机制清理相关映射（只清理fd映射，不影响其他引用）
+        fd_map_.erase(fd);
 
         LOG_DEBUG << "[close] completed read-only fd=" << fd;
         return 0;
@@ -928,16 +984,8 @@ int BwtFSMounter::close(int fd){
         auto memory_file_it = memory_fs_.files_.find(file_path);
         if (memory_file_it == memory_fs_.files_.end()) {
             LOG_ERROR << "[close] memory file not found: " << file_path;
-            // 清理映射
-            if (path_it != fd_map_.end()) {
-                path_fd_map_.erase(path_it->second);
-                fd_map_.erase(path_it);
-            }
-            auto memory_fd_it = fd_to_memory_fd_map_.find(fd);
-            if (memory_fd_it != fd_to_memory_fd_map_.end()) {
-                memory_fs_.close(memory_fd_it->second);
-                fd_to_memory_fd_map_.erase(memory_fd_it);
-            }
+            // 使用引用计数机制清理映射
+            cleanupFdMappings(fd);
             return -EIO;
         }
 
@@ -957,20 +1005,20 @@ int BwtFSMounter::close(int fd){
                 LOG_INFO << "[close] user file, keeping in memory_fs waiting for data: " << file_path;
             }
 
-            // 无论是否为空，都保持文件在memory_fs中，等待后续写入
+            // 空文件保持打开状态，等待后续写入
             // 更新文件管理器记录，保持token为"memory"
             file_manager_.remove(file_path);
             file_manager_.addFile(file_path, "memory", 0);
 
-            // 清理映射
-            if (path_it != fd_map_.end()) {
-                path_fd_map_.erase(path_it->second);
-                fd_map_.erase(path_it);
-            }
+            // 注意：不清理fd映射，保持文件打开以接收后续写入
+            // macOS文件复制需要文件在创建后保持可写状态
+            LOG_INFO << "[close] keeping empty file open for potential writes: " << file_path;
+
+            // 只关闭内存文件描述符，但保持fd映射有效
             auto memory_fd_it = fd_to_memory_fd_map_.find(fd);
             if (memory_fd_it != fd_to_memory_fd_map_.end()) {
                 memory_fs_.close(memory_fd_it->second);
-                fd_to_memory_fd_map_.erase(memory_fd_it);
+                // 不删除fd_to_memory_fd_map_映射，以便后续写入可以重新打开
             }
             return 0;
         }
@@ -992,6 +1040,32 @@ int BwtFSMounter::close(int fd){
 
             LOG_INFO << "[close] joining tree for: " << file_path;
             tree.join();
+
+            // 如果这是系统临时文件，在删除前检查是否有对应的主文件需要数据同步
+            std::string basename = file_path.substr(file_path.find_last_of('/') + 1);
+            if (basename.find("._") == 0) {
+                // 提取主文件名（去掉._前缀）
+                std::string main_filename = basename.substr(2);
+                std::string main_file_path = file_path.substr(0, file_path.find_last_of('/') + 1) + main_filename;
+
+                // 检查主文件是否存在且为memory文件
+                auto main_token = file_manager_.getFileToken(main_file_path);
+                if (main_token == "memory") {
+                    LOG_INFO << "[close] detected system temp file completion, syncing data to main file: " << main_file_path;
+
+                    // 将数据复制到主文件
+                    auto main_memory_it = memory_fs_.files_.find(main_file_path);
+                    if (main_memory_it != memory_fs_.files_.end()) {
+                        main_memory_it->second.data = data;  // 复制数据
+
+                        // 更新主文件大小
+                        file_manager_.updateFileSize(main_file_path, data.size());
+                        LOG_INFO << "[close] synced " << data.size() << " bytes to main file: " << main_file_path;
+                    } else {
+                        LOG_WARNING << "[close] main file not found in memory_fs: " << main_file_path;
+                    }
+                }
+            }
 
             // 获取访问令牌
             std::string new_token = tree.get_token();
@@ -1028,16 +1102,8 @@ int BwtFSMounter::close(int fd){
             file_manager_.addFile(file_path, "memory", data.size());
         }
 
-        // 清理映射
-        if (path_it != fd_map_.end()) {
-            path_fd_map_.erase(path_it->second);
-            fd_map_.erase(path_it);
-        }
-        auto memory_fd_it = fd_to_memory_fd_map_.find(fd);
-        if (memory_fd_it != fd_to_memory_fd_map_.end()) {
-            memory_fs_.close(memory_fd_it->second);
-            fd_to_memory_fd_map_.erase(memory_fd_it);
-        }
+        // 使用引用计数机制清理映射
+        cleanupFdMappings(fd);
 
         LOG_DEBUG << "[close] completed memory file finalization for fd=" << fd;
         return 0;
@@ -1046,16 +1112,8 @@ int BwtFSMounter::close(int fd){
         // 已经存在于bwtfs中的文件，直接关闭
         LOG_DEBUG << "[close] closing existing bwtfs file: " << file_path;
 
-        // 清理映射
-        if (path_it != fd_map_.end()) {
-            path_fd_map_.erase(path_it->second);
-            fd_map_.erase(path_it);
-        }
-        auto memory_fd_it = fd_to_memory_fd_map_.find(fd);
-        if (memory_fd_it != fd_to_memory_fd_map_.end()) {
-            memory_fs_.close(memory_fd_it->second);
-            fd_to_memory_fd_map_.erase(memory_fd_it);
-        }
+        // 使用引用计数机制清理映射
+        cleanupFdMappings(fd);
 
         LOG_DEBUG << "[close] completed bwtfs file closure for fd=" << fd;
         return 0;
@@ -1287,6 +1345,36 @@ FileNode BwtFSMounter::getFileNode(const std::string& path) {
     // 普通用户文件，从BwtFS获取
     auto file_node = file_manager_.getFile(normalized_path);
     return file_node;
+}
+
+void BwtFSMounter::cleanupFdMappings(int fd) {
+    // 获取文件路径
+    auto it = fd_map_.find(fd);
+    if (it == fd_map_.end()) {
+        return;  // fd不存在
+    }
+
+    std::string file_path = it->second;
+
+    // 清理fd相关的映射
+    fd_map_.erase(fd);
+    auto memory_fd_it = fd_to_memory_fd_map_.find(fd);
+    if (memory_fd_it != fd_to_memory_fd_map_.end()) {
+        memory_fs_.close(memory_fd_it->second);
+        fd_to_memory_fd_map_.erase(memory_fd_it);
+    }
+
+    // 处理引用计数
+    auto ref_it = path_ref_count_.find(file_path);
+    if (ref_it != path_ref_count_.end()) {
+        ref_it->second--;
+        if (ref_it->second <= 0) {
+            // 最后一个fd关闭，清理路径映射
+            path_fd_map_.erase(file_path);
+            path_ref_count_.erase(ref_it);
+        }
+        // 如果还有引用，保持path_fd_map指向第一个fd
+    }
 }
 
 SystemInfo BwtFSMounter::getSystemInfo() {
