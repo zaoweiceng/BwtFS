@@ -144,7 +144,7 @@ namespace BwtFS::Node{
                 if(is_delete){
                     delete_bitmap.push_back(t.get_bitmap());
                 }
-                LOG_DEBUG << "Bitmap: " << t.get_bitmap();
+                // LOG_DEBUG << "Bitmap: " << t.get_bitmap();
 
                 m_entry_queue.emplace(t.get_bitmap(), NodeType::BLACK_NODE, t.get_start(), 
                                         t.get_length(), t.get_seed(), t.get_level());
@@ -261,18 +261,18 @@ namespace BwtFS::Node{
             * 初始化访问节点
             */
             void init(bool is_delete = false){
-                LOG_DEBUG << "Init visit nodes";
+                // LOG_DEBUG << "Init visit nodes";
                 while(!m_entry_queue.empty()){
                     auto entry = m_entry_queue.front();
                     m_entry_queue.pop();
-                    LOG_DEBUG << "Entry bitmap: " << entry.get_bitmap() 
-                              << ", level: " << (int)entry.get_level() 
-                              << ", seed: " << entry.get_seed() 
-                              << ", start: " << entry.get_start() 
-                              << ", length: " << entry.get_length();
+                    // LOG_DEBUG << "Entry bitmap: " << entry.get_bitmap() 
+                            //   << ", level: " << (int)entry.get_level() 
+                            //   << ", seed: " << entry.get_seed() 
+                            //   << ", start: " << entry.get_start() 
+                            //   << ", length: " << entry.get_length();
                     Binary bd = m_fs->read(entry.get_bitmap());
-                    LOG_DEBUG << "Read bitmap: " << entry.get_bitmap() 
-                              << ", size: " << bd.size();
+                    // LOG_DEBUG << "Read bitmap: " << entry.get_bitmap() 
+                    //           << ", size: " << bd.size();
                     if(is_delete){
                         delete_bitmap.push_back(entry.get_bitmap());
                     }

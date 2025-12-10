@@ -930,11 +930,9 @@ int BwtFSMounter::remove(const std::string& path){
 
     // 验证token有效性，避免损坏的token导致BwtFS错误
     if (file_token.empty() ||
-        file_token.find('*') != std::string::npos ||
-        file_token.find('-') != std::string::npos ||
         file_token.length() <= 10) {
         LOG_ERROR << "[remove] invalid token, cannot safely delete: " << path << " token=" << file_token;
-        file_manager_.remove(path);  // 至少从元数据中删除
+        // file_manager_.remove(path);  // 至少从元数据中删除
         return -1;
     }
 
@@ -947,7 +945,7 @@ int BwtFSMounter::remove(const std::string& path){
     } catch (const std::exception& e) {
         LOG_ERROR << "[remove] failed to delete BwtFS file " << path << ": " << e.what();
         // 即使删除失败，也要从元数据中清理记录
-        file_manager_.remove(path);
+        // file_manager_.remove(path);
         return -1;
     }
 }
@@ -1160,34 +1158,53 @@ std::vector<std::string> splitPath(const std::string& path) {
 
 int BwtFSMounter::rename(const std::string& old_path, const std::string& new_path) {
     LOG_DEBUG << "[rename] " << old_path << " -> " << new_path;
-    // file_manager_.rename(old_path, new_path);
-    // 根据oldpath和newpath判断是重命名文件、文件夹，还是移动
+
+    // 判断是否为文件并检查是否在内存中
+    auto old_node = file_manager_.getFile(old_path);
+    bool in_memory = old_node.token == "memory";
+
     std::vector<std::string> old_paths = splitPath(old_path);
     std::vector<std::string> new_paths = splitPath(new_path);
-    if (old_paths.size() == new_paths.size()) {
-        // 重命名
-        bool is_rename = true;
-        for (size_t i = 0; i < old_paths.size() - 1; i++) {
-            if (old_paths[i] != new_paths[i]) {
-                is_rename = false;
-                break;
-            }
-        }
-        if (is_rename) {
-            // 这是重命名操作，只需要传递文件名部分
-            std::string old_basename = get_basename(old_path);
-            std::string new_basename = get_basename(new_path);
-            file_manager_.rename(old_path, new_basename);
-            LOG_DEBUG << "[rename] Detected as rename operation: " << old_path << " -> " << new_basename;
-            return 0;
+
+    auto do_move = [&](const std::string& from, const std::string& to) {
+        if (in_memory) {
+            // 内存文件，使用memory_fs处理，同时更新file_manager
+            memory_fs_.rename(from, to);
+            file_manager_.remove(from);
+            file_manager_.addFile(to, "memory", old_node.file_size);
         } else {
-            file_manager_.move(old_path, new_path);
-            LOG_DEBUG << "[rename] Detected as move operation: " << old_path << " -> " << new_path;
-            return 0;
+            int last_slash = to.find_last_of('/');
+            std::string to_name = (last_slash == std::string::npos) ? to : to.substr(0, last_slash + 1);
+            LOG_DEBUG << "[rename] moving file in BwtFS from " << from << " to dir " << to << " with name " << to_name;
+            file_manager_.move(from, to_name);
         }
+    };
+
+    auto do_rename = [&](const std::string& from, const std::string& new_base) {
+        if (in_memory) {
+            // 只改变文件名
+            std::string parent = get_parent_dir(from);
+            std::string to = parent == "/" ? "/" + new_base : parent + "/" + new_base;
+            memory_fs_.rename(from, to);
+            file_manager_.remove(from);
+            file_manager_.addFile(to, "memory", old_node.file_size);
+        } else {
+            // fm.move("/file2.txt", "/dir1");
+
+            file_manager_.rename(from, new_base);
+        }
+    };
+    auto splited_new_paths = splitPath(new_path);
+    auto splited_old_paths = splitPath(old_path);
+
+    if (splited_new_paths.size() == splited_old_paths.size()) {
+        // 重命名
+        // LOG_DEBUG << "[rename] performing rename operation";
+        do_rename(old_path, splited_new_paths.back());
     } else {
         // 移动
-        file_manager_.move(old_path, new_path);
+        // LOG_DEBUG << "[rename] performing move operation";
+        do_move(old_path, new_path);
     }
     return 0;
 }

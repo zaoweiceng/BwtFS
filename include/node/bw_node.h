@@ -169,16 +169,16 @@ namespace BwtFS::Node{
                 this->m_value = Binary(value.read(start, length));
                 // this->size_of_entry = length/entry::size();
                 BwtFS::Node::entry_list entry_data;
-                LOG_DEBUG << "start: " << start << ", length: " << length 
-                          << ", value size: " << this->m_value.size() 
-                          << ", entry size: " << length/entry::size()
-                          << ", size_of_entry: " << int(this->size_of_entry);
+                // LOG_DEBUG << "start: " << start << ", length: " << length 
+                //           << ", value size: " << this->m_value.size() 
+                //           << ", entry size: " << length/entry::size()
+                //           << ", size_of_entry: " << int(this->size_of_entry);
                 if (this->size_of_entry == 0){
                     entry_data = entry_list::from_binary(this->m_value, length/entry::size());
                 }else{
                     entry_data = entry_list::from_binary(this->m_value, this->size_of_entry);
                 }
-                LOG_DEBUG << "entry_data size: " << entry_data.size();
+                // LOG_DEBUG << "entry_data size: " << entry_data.size();
                 for (int i = 0; i < entry_data.size(); i++) {
                     this->m_entry_list->add_entry(entry_data.get_entry(i));
                 }

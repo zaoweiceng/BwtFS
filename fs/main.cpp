@@ -345,12 +345,15 @@ static BwtFSMounter bwtfs;
 
 // BwtFS采用简单策略，不实现复杂的xattr操作（参考memory_fs的成功做法）
 
+#ifdef __APPLE__
+    // macOS的chown适配器函数
 static int bwtfs_chmod_macos_chown_adapter(const char *path, uid_t uid, gid_t gid, struct fuse_file_info *fi) {
     // macOS下的chown适配器
     LOG_DEBUG << "[chown] " << path << " uid=" << uid << " gid=" << gid;
     // BwtFS不支持所有者变更，直接返回成功
     return 0;
 }
+#endif
 
 # ifdef _WIN32
     static int bwtfs_getattr(const char *path, struct fuse_stat *stbuf, struct fuse_file_info *fi)

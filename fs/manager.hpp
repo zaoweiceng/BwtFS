@@ -349,7 +349,7 @@ public:
                 bool is_dir = it.value()["is_dir"];
                 std::string token = is_dir ? "" : (it.value().contains("token") ? it.value()["token"] : "");
                 size_t file_size = is_dir ? 0 : (it.value().contains("file_size") ? it.value()["file_size"].get<size_t>() : 0);
-                LOG_DEBUG << "Found child item: " << name << " (dir: " << is_dir << ")";
+                // LOG_DEBUG << "Found child item: " << name << " (dir: " << is_dir << ")";
                 result.emplace_back(name, is_dir, token, file_size, &it.value());
             }
         }
@@ -379,24 +379,12 @@ public:
         if (parent == &root_json) {
             // 直接在根目录下查找
             if (!parent->contains(name)) {
-                // 对于系统临时文件（如Finder创建的），静默处理而不报错
-                if (name.find("._") == 0 || name == ".DS_Store" || name.empty()) {
-                    LOG_DEBUG << "系统文件不存在，返回空节点: " << path;
-                } else {
-                    LOG_DEBUG << "文件不存在: " << path;
-                }
                 return FileNode();
             }
             node_ptr = &(*parent)[name];
         } else {
             // 在children中查找
             if (!parent->contains("children") || !(*parent)["children"].contains(name)) {
-                // 对于系统临时文件（如Finder创建的），静默处理而不报错
-                if (name.find("._") == 0 || name == ".DS_Store" || name.empty()) {
-                    LOG_DEBUG << "系统文件不存在，返回空节点: " << path;
-                } else {
-                    LOG_DEBUG << "文件不存在: " << path;
-                }
                 return FileNode();
             }
             node_ptr = &(*parent)["children"][name];
@@ -410,13 +398,13 @@ public:
 
         bool is_dir = node["is_dir"];
         if (is_dir) {
-            LOG_DEBUG << "路径是目录: " << path;
+            // LOG_DEBUG << "路径是目录: " << path;
             return FileNode(name, true, "", 0, &node);
         }
 
         std::string token = node.contains("token") ? node["token"] : "";
         size_t file_size = node.contains("file_size") ? node["file_size"].get<size_t>() : 0;
-        LOG_DEBUG << "Found file: " << path << " token: '" << token << "' size: " << file_size;
+        // LOG_DEBUG << "Found file: " << path << " token: '" << token << "' size: " << file_size;
         return FileNode(name, false, token, file_size, &node);
     }
     
@@ -430,7 +418,7 @@ public:
             return true; // 根目录已存在
         }
 
-        LOG_DEBUG << "createDir path: '" << path << "'";
+        // LOG_DEBUG << "createDir path: '" << path << "'";
         auto [parent, name] = getParentAndName(path);
 
         if (!parent || name.empty()) {
@@ -659,11 +647,11 @@ public:
     std::string getFileToken(const std::string& path) {
         auto file_node = getFile(path);
         if (file_node.name.empty() || file_node.is_dir) {
-            LOG_ERROR << "文件不存在: " << path;
+            // LOG_ERROR << "文件不存在: " << path;
             return "";
         }
         if (file_node.token == "PENDING") {
-            LOG_DEBUG << "文件正在写入中: " << path;
+            // LOG_DEBUG << "文件正在写入中: " << path;
             return "";
         }
         return file_node.token;
