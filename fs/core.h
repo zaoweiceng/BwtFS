@@ -36,7 +36,7 @@ public:
 private:
     
     std::unordered_map<int, std::string> fd_map_;   // 文件描述符 -> 文件名
-    int next_fd_ = 3;
+    int next_fd_ = 1;
 };
 
 class BwtFSMounter {
@@ -47,8 +47,9 @@ class BwtFSMounter {
         std::unordered_map<int, std::string> fd_map_;   // 文件描述符 -> 文件路径
         std::unordered_map<std::string, int> path_fd_map_; // 文件路径 -> 文件描述符
         std::unordered_map<int, BwtFS::Node::bw_tree*> fd_tree_map_; // 文件描述符 -> bw_tree对象
-        std::unordered_map<int, BwtFS::Node::bw_tree*> fd_write_wait_map_; // 文件描述符 -> 写入用bw_tree对象
-        std::unordered_map<int, size_t> fd_file_size_map_; // 文件描述符 -> 文件大小
+        // std::unordered_map<int, BwtFS::Node::bw_tree*> fd_write_wait_map_; // 文件描述符 -> 写入用bw_tree对象
+        // std::unordered_map<int, size_t> fd_file_size_map_; // 文件描述符 -> 文件大小
+        std::unordered_map<int, int> fd_to_memory_fd_map_; // BwtFS文件描述符 -> 内存文件描述符
         int next_fd_ = 1;
 
         // 判断文件是否应该存储在memory_fs中（系统临时文件）
@@ -56,15 +57,15 @@ class BwtFSMounter {
             std::string basename = path.substr(path.find_last_of('/') + 1);
 
             // macOS系统文件
-            if (basename.find("._") == 0 ||               // 资源分支文件
-                basename == ".DS_Store" ||                 // 桌面服务存储文件
-                basename == "Thumbs.db" ||                 // Windows缩略图缓存
-                basename == "desktop.ini" ||               // Windows桌面配置
-                basename.find(".TemporaryItems") == 0 ||   // macOS临时项目
-                basename.find(".vscode") == 0 ||           // VSCode临时文件
-                basename.find("~$") == 0) {                // Office临时文件
-                return true;
-            }
+            // if (basename.find("._") == 0 ||               // 资源分支文件
+            //     basename == ".DS_Store" ||                 // 桌面服务存储文件
+            //     basename == "Thumbs.db" ||                 // Windows缩略图缓存
+            //     basename == "desktop.ini" ||               // Windows桌面配置
+            //     basename.find(".TemporaryItems") == 0 ||   // macOS临时项目
+            //     basename.find(".vscode") == 0 ||           // VSCode临时文件
+            //     basename.find("~$") == 0) {                // Office临时文件
+            //     return true;
+            // }
 
             return false;
         }
@@ -110,7 +111,7 @@ class BwtFSMounter {
                 }
             }
         }
-        int open(const std::string& path);
+        int open(const std::string& path, int flags = 0);
         int read(int fd, char* buf, size_t size);
         int read(int fd, char* buf, size_t size, off_t offset);
         int write(int fd, const char* buf, size_t size);

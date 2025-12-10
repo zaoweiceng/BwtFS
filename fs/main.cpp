@@ -4,6 +4,7 @@
     // Windows平台使用WinFSP，FUSE版本29
     #define FUSE_USE_VERSION 29
     #include <fuse.h>
+    #include <sys/stat.h>
 #elif defined(__APPLE__)
     // macOS平台使用macFUSE，FUSE版本26（兼容性更好）
     #define FUSE_USE_VERSION 26
@@ -447,7 +448,7 @@ static int bwtfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 static int bwtfs_open_fuse(const char *path, struct fuse_file_info *fi)
 {
     LOG_DEBUG << "[open] " << path;
-    fi->fh = bwtfs.open(path);
+    fi->fh = bwtfs.open(path, fi->flags);
     return fi->fh < 0 ? -ENOENT : 0;
 }
 
@@ -469,18 +470,18 @@ static int bwtfs_create_fuse(const char* path, mode_t mode, struct fuse_file_inf
     // BwtFS采用与memory_fs相同的简单策略，不过滤系统文件以确保Finder兼容性
 
     LOG_DEBUG << "[create] " << path;
-    // 首先尝试打开文件，如果文件不存在则创建
-    int fd = bwtfs.open(path);  // open函数内部会自动创建不存在的文件
-    if (fd < 0) {
-        // 如果打开失败，尝试显式创建文件
-        if (bwtfs.create(path) < 0) {
-            return -EIO; // 创建失败返回I/O错误
-        }
-        // 创建成功后再次尝试打开
-        fd = bwtfs.open(path);
+    // 直接创建文件，使用新的BwtFSMounter逻辑
+    int result = bwtfs.create(path);
+    if (result < 0) {
+        return -result; // 返回适当的错误码（取绝对值）
     }
 
-    if (fd < 0) return -EIO; // 如果仍然失败，返回I/O错误
+    // 创建成功后打开文件
+    int fd = bwtfs.open(path);
+    if (fd < 0) {
+        return -EIO; // 打开失败返回I/O错误
+    }
+
     fi->fh = fd;              // 设置文件句柄
     return 0;                 // 返回成功
 }

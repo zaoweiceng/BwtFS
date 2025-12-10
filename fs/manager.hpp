@@ -732,6 +732,40 @@ public:
             return false;
         }
     }
+
+    void updateFileSize(const std::string& path, size_t new_size) {
+        auto [parent, name] = getParentAndName(path);
+
+        if (!parent || name.empty()) {
+            LOG_ERROR << "路径不存在: " << path;
+            return;
+        }
+
+        // 检查父节点是否为根目录
+        json* node_ptr;
+        if (parent == &root_json) {
+            if (!parent->contains(name)) {
+                LOG_ERROR << "路径不存在: " << path;
+                return;
+            }
+            node_ptr = &(*parent)[name];
+        } else {
+            if (!parent->contains("children") || !(*parent)["children"].contains(name)) {
+                LOG_ERROR << "路径不存在: " << path;
+                return;
+            }
+            node_ptr = &(*parent)["children"][name];
+        }
+
+        json& node = *node_ptr;
+        if (node.contains("is_dir") && !node["is_dir"]) {
+            node["file_size"] = new_size;
+            saveToFile(this->file_path);
+            LOG_DEBUG << "更新文件大小: " << path << " 新大小: " << new_size;
+        } else {
+            LOG_ERROR << "路径不是文件: " << path;
+        }
+    }
 };
 
 // 测试函数
