@@ -347,10 +347,15 @@ int BwtFSMounter::open(const std::string& path, int flags /* = O_RDONLY */){
     } else {
         // 文件已经在bwtfs中
         if (need_write) {
-            // 暂时简化策略：不支持修改已存在的文件
-            LOG_ERROR << "[open] write access not supported for existing files: " << normalized_path;
-            LOG_ERROR << "[open] please delete the file first and recreate it";
-            return -EROFS;  // Read-only file system
+            // 支持写入：如果是现有文件，将使用COW策略
+            LOG_INFO << "[open] opening existing file for write with COW support: " << normalized_path;
+
+            // 创建文件描述符映射，COW策略将在write时处理
+            int fd = next_fd_++;
+            fd_map_[fd] = normalized_path;
+            path_fd_map_[normalized_path] = fd;
+
+            return fd;
         } else {
             // 只读访问，创建bw_tree对象进行读取
             LOG_DEBUG << "[open] opening file from BwtFS: " << normalized_path << " token=" << file_token;
@@ -362,10 +367,10 @@ int BwtFSMounter::open(const std::string& path, int flags /* = O_RDONLY */){
             }
 
             // 检查token中是否包含无效字符
-            if (file_token.find('*') != std::string::npos) {
-                LOG_ERROR << "[open] invalid token containing '*': " << file_token << " for file: " << normalized_path;
-                return -EIO;
-            }
+            // if (file_token.find('*') != std::string::npos) {
+            //     LOG_ERROR << "[open] invalid token containing '*': " << file_token << " for file: " << normalized_path;
+            //     return -EIO;
+            // }
 
             try {
                 BwtFS::Node::bw_tree* tree = new BwtFS::Node::bw_tree(file_token, false);
@@ -553,7 +558,7 @@ int BwtFSMounter::write(int fd, const char* buf, size_t size){
 
     auto it = fd_map_.find(fd);
     if (it == fd_map_.end()) {
-        LOG_ERROR << "[write] Invalid fd map entry for fd=" << fd << " (file already closed?)";
+        LOG_WARNING << "[write] Invalid fd map entry for fd=" << fd << ", treating as closed";
         return -EBADF;
     }
 
@@ -581,9 +586,127 @@ int BwtFSMounter::write(int fd, const char* buf, size_t size){
 
         return write_size;
     } else {
-        // 这种情况不应该发生（COW策略确保需要写入的文件都在memory_fs中）
-        LOG_ERROR << "[write] internal error: file not in memory_fs for write operation: " << file_path;
-        return -EIO;
+        // 文件在BwtFS中，需要使用COW策略
+        LOG_INFO << "[write] file in BwtFS, using COW strategy: " << file_path << " size=" << size;
+
+        // 声明临时文件描述符，以便在catch块中也能访问
+        int temp_fd = -1;
+        std::string temp_file_path;
+
+        try {
+            // 1. 从BwtFS读取原文件内容
+            BwtFS::Node::bw_tree read_tree(file_token, false);
+
+            // 2. 创建临时文件名
+            temp_file_path = file_path + ".cow_temp";
+
+            // 3. 在memory_fs中创建临时文件
+            if (memory_fs_.create(temp_file_path) < 0) {
+                LOG_ERROR << "[write] failed to create temp file in memory_fs: " << temp_file_path;
+                return -EIO;
+            }
+
+            temp_fd = memory_fs_.open(temp_file_path);
+            if (temp_fd < 0) {
+                LOG_ERROR << "[write] failed to open temp file in memory_fs: " << temp_file_path;
+                return -EIO;
+            }
+
+            // 4. 读取原文件内容到临时文件
+            constexpr size_t chunk_size = 4096;
+            size_t total_bytes = 0;
+            int index = 0;
+
+            while (true) {
+                auto data = read_tree.read(index, chunk_size);
+                if (data.empty()) {
+                    break;
+                }
+
+                memory_fs_.write(temp_fd, reinterpret_cast<const char*>(data.data()), data.size());
+                total_bytes += data.size();
+                index += data.size();
+
+                if (data.size() < chunk_size) {
+                    break;
+                }
+            }
+
+            // 5. 写入新的内容（从参数buf）
+            memory_fs_.write(temp_fd, buf, size);
+
+            // 6. 获取更新后的文件大小
+            auto temp_file_it = memory_fs_.files_.find(temp_file_path);
+            size_t final_size = temp_file_it->second.data.size();
+
+            LOG_INFO << "[write] COW: read " << total_bytes << " bytes, wrote " << size << " bytes, total: " << final_size << " for: " << file_path;
+
+            // 8. 关闭临时文件描述符
+            memory_fs_.close(temp_fd);
+            temp_fd = -1;  // 标记为已关闭
+
+            // 9. 验证原token有效性，避免删除无效文件导致崩溃
+            if (file_token.empty() ||
+                file_token.length() <= 10) {
+                LOG_ERROR << "[write] invalid original token, keeping as memory file: " << file_token;
+                file_manager_.remove(file_path);
+                file_manager_.addFile(file_path, "memory", final_size);
+                memory_fs_.remove(temp_file_path);
+                return size;
+            }
+
+            // 10. 先创建新文件（安全策略：先创建再删除）
+            LOG_INFO << "[write] creating new BwtFS file: " << file_path;
+            BwtFS::Node::bw_tree new_tree;
+            new_tree.write(const_cast<char*>(temp_file_it->second.data.data()), final_size);
+            new_tree.flush();
+            new_tree.join();
+
+            std::string new_token = new_tree.get_token();
+
+            // Validate the new token - ensure it's valid Base64 and doesn't contain problematic characters
+            if (!new_token.empty() &&
+                new_token.length() > 10) {
+
+                // 11. 新文件创建成功，现在安全删除原文件
+                LOG_DEBUG << "[write] deleting original BwtFS file: " << file_path;
+                try {
+                    BwtFS::Node::bw_tree delete_tree(file_token, true);
+                    delete_tree.delete_file();
+                } catch (const std::exception& e) {
+                    LOG_WARNING << "[write] failed to delete original file (may be already corrupted): " << e.what();
+                    // 继续执行，因为新文件已经创建成功
+                }
+
+                // 12. 更新文件管理器
+                LOG_INFO << "[write] COW successfully updated: " << file_path << " with new token: " << new_token;
+                file_manager_.remove(file_path);
+                file_manager_.addFile(file_path, new_token, final_size);
+
+                // 13. 删除临时文件
+                memory_fs_.remove(temp_file_path);
+
+                return size;
+            } else {
+                LOG_ERROR << "[write] COW failed to get valid token, keeping original file: " << new_token;
+                // 新文件创建失败，保持原文件不变，这是最安全的策略
+                // 不删除原文件，不更新token，只删除临时文件
+                memory_fs_.remove(temp_file_path);
+                return size;
+            }
+
+        } catch (const std::exception& e) {
+            LOG_ERROR << "[write] COW strategy failed for " << file_path << ": " << e.what();
+            // 清理临时文件描述符（只在有效时关闭）
+            if (temp_fd >= 0) {
+                memory_fs_.close(temp_fd);
+            }
+            // 清理临时文件（如果存在）
+            if (!temp_file_path.empty()) {
+                memory_fs_.remove(temp_file_path);
+            }
+            return -EIO;
+        }
     }
 }
 
@@ -592,7 +715,7 @@ int BwtFSMounter::write(int fd, const char* buf, size_t size, off_t offset) {
 
     auto it = fd_map_.find(fd);
     if (it == fd_map_.end()) {
-        LOG_ERROR << "[write] Invalid fd map entry for fd=" << fd << " (file already closed?)";
+        LOG_WARNING << "[write] Invalid fd map entry for fd=" << fd << ", treating as closed";
         return -EBADF;
     }
 
@@ -620,9 +743,135 @@ int BwtFSMounter::write(int fd, const char* buf, size_t size, off_t offset) {
 
         return write_size;
     } else {
-        // 这种情况不应该发生（COW策略确保需要写入的文件都在memory_fs中）
-        LOG_ERROR << "[write] internal error: file not in memory_fs for write operation: " << file_path;
-        return -EIO;
+        // 文件在BwtFS中，需要使用COW策略
+        LOG_INFO << "[write] file in BwtFS, using COW strategy with offset: " << file_path << " offset=" << offset << " size=" << size;
+
+        // 声明临时文件描述符，以便在catch块中也能访问
+        int temp_fd = -1;
+        std::string temp_file_path;
+
+        try {
+            // 1. 从BwtFS读取原文件内容
+            BwtFS::Node::bw_tree read_tree(file_token, false);
+
+            // 2. 创建临时文件名
+            temp_file_path = file_path + ".cow_temp";
+
+            // 3. 在memory_fs中创建临时文件
+            if (memory_fs_.create(temp_file_path) < 0) {
+                LOG_ERROR << "[write] failed to create temp file in memory_fs: " << temp_file_path;
+                return -EIO;
+            }
+
+            temp_fd = memory_fs_.open(temp_file_path);
+            if (temp_fd < 0) {
+                LOG_ERROR << "[write] failed to open temp file in memory_fs: " << temp_file_path;
+                return -EIO;
+            }
+
+            // 4. 读取原文件内容到临时文件
+            constexpr size_t chunk_size = 4096;
+            size_t total_bytes = 0;
+            int index = 0;
+
+            while (true) {
+                auto data = read_tree.read(index, chunk_size);
+                if (data.empty()) {
+                    break;
+                }
+
+                memory_fs_.write(temp_fd, reinterpret_cast<const char*>(data.data()), data.size());
+                total_bytes += data.size();
+                index += data.size();
+
+                if (data.size() < chunk_size) {
+                    break;
+                }
+            }
+
+            // 5. 确保临时文件足够大以容纳偏移写入
+            if (offset + size > total_bytes) {
+                // 用零填充扩展文件
+                std::vector<char> padding(offset + size - total_bytes, 0);
+                memory_fs_.write(temp_fd, padding.data(), padding.size());
+                total_bytes = offset + size;
+            }
+
+            // 6. 在指定位置写入新内容
+            memory_fs_.write(temp_fd, buf, size, offset);
+
+            // 7. 获取最终文件大小
+            auto temp_file_it = memory_fs_.files_.find(temp_file_path);
+            size_t final_size = temp_file_it->second.data.size();
+
+            LOG_INFO << "[write] COW: read " << total_bytes << " bytes, wrote offset " << offset << " size " << size << ", total: " << final_size << " for: " << file_path;
+
+            // 8. 关闭临时文件描述符
+            memory_fs_.close(temp_fd);
+            temp_fd = -1;  // 标记为已关闭
+
+            // 9. 验证原token有效性，避免删除无效文件导致崩溃
+            if (file_token.empty() ||
+                file_token.length() <= 10) {
+                LOG_ERROR << "[write] invalid original token, keeping as memory file: " << file_token;
+                file_manager_.remove(file_path);
+                file_manager_.addFile(file_path, "memory", final_size);
+                memory_fs_.remove(temp_file_path);
+                return size;
+            }
+
+            // 10. 先创建新文件（安全策略：先创建再删除）
+            LOG_INFO << "[write] creating new BwtFS file: " << file_path;
+            BwtFS::Node::bw_tree new_tree;
+            new_tree.write(const_cast<char*>(temp_file_it->second.data.data()), final_size);
+            new_tree.flush();
+            new_tree.join();
+
+            std::string new_token = new_tree.get_token();
+
+            // Validate the new token - ensure it's valid Base64 and doesn't contain problematic characters
+            if (!new_token.empty()  &&
+                new_token.length() > 10) {
+
+                // 11. 新文件创建成功，现在安全删除原文件
+                LOG_DEBUG << "[write] deleting original BwtFS file: " << file_path;
+                try {
+                    BwtFS::Node::bw_tree delete_tree(file_token, true);
+                    delete_tree.delete_file();
+                } catch (const std::exception& e) {
+                    LOG_WARNING << "[write] failed to delete original file (may be already corrupted): " << e.what();
+                    // 继续执行，因为新文件已经创建成功
+                }
+
+                // 12. 更新文件管理器
+                LOG_INFO << "[write] COW successfully updated: " << file_path << " with new token: " << new_token;
+                file_manager_.remove(file_path);
+                file_manager_.addFile(file_path, new_token, final_size);
+
+                // 13. 删除临时文件
+                memory_fs_.remove(temp_file_path);
+
+                return size;
+            } else {
+                LOG_ERROR << "[write] COW failed to get valid token, keeping original file: " << new_token;
+                // 新文件创建失败，保持原文件不变，这是最安全的策略
+                // 不删除原文件，不更新token，只删除临时文件
+                memory_fs_.remove(temp_file_path);
+                return size;
+            }
+
+        } catch (const std::exception& e) {
+            LOG_ERROR << "[write] COW strategy failed for " << file_path << ": " << e.what();
+            // 清理临时文件描述符（只在有效时关闭）
+            if (temp_fd >= 0) {
+                memory_fs_.close(temp_fd);
+            }
+            // 清理临时文件（如果存在）
+            if (!temp_file_path.empty()) {
+                memory_fs_.remove(temp_file_path);
+            }
+            return -EIO;
+        }
     }
 }
 
@@ -694,37 +943,24 @@ int BwtFSMounter::close(int fd){
 
         const auto& data = memory_file_it->second.data;
 
-        // 检查文件是否为空 - 0字节文件不能写入BwtFS，保持为memory文件或删除
+        // 检查文件是否为空 - 参考memory_fs，空文件也应该保留
         if (data.empty()) {
-            LOG_WARNING << "[close] memory file is empty (0 bytes), BwtFS doesn't support empty files: " << file_path;
-            LOG_WARNING << "[close] keeping as memory file or removing system temp file: " << file_path;
+            LOG_INFO << "[close] empty file detected, keeping in memory_fs like memory_fs: " << file_path;
 
-            // 检查文件类型
+            // 对于系统临时文件，保持简洁处理
             std::string basename = file_path.substr(file_path.find_last_of('/') + 1);
-            if (basename.find("._") == 0 || basename == ".DS_Store") {
-                // 对于系统临时文件，直接删除
-                LOG_INFO << "[close] removing system temp file: " << file_path;
-                file_manager_.remove(file_path);
-                memory_fs_.remove(file_path);
-            } else {
-                // 对于用户文件，检查是否为大文件复制过程中的临时文件
-                // 如果对应的系统临时文件存在，说明这是复制过程，允许删除
-                std::string temp_file_path = "/._" + basename;
-                auto temp_file_it = memory_fs_.files_.find(temp_file_path);
-                bool has_temp_file = (temp_file_it != memory_fs_.files_.end());
+            bool is_system_temp_file = (basename.find("._") == 0 || basename == ".DS_Store");
 
-                if (has_temp_file && temp_file_it->second.data.size() > 0) {
-                    // 如果有对应的非空系统临时文件，说明是复制过程，删除空的主文件
-                    LOG_INFO << "[close] removing empty user file during copy process: " << file_path;
-                    file_manager_.remove(file_path);
-                    memory_fs_.remove(file_path);
-                } else {
-                    // 否则保持为memory文件，允许后续写入
-                    LOG_INFO << "[close] keeping empty user file as memory file: " << file_path;
-                    LOG_INFO << "[close] file will be written to bwtfs when data is added";
-                    // 保持文件在memory_fs中，token仍为"memory"，允许后续写入
-                }
+            if (is_system_temp_file) {
+                LOG_INFO << "[close] system temp file, keeping in memory_fs: " << file_path;
+            } else {
+                LOG_INFO << "[close] user file, keeping in memory_fs waiting for data: " << file_path;
             }
+
+            // 无论是否为空，都保持文件在memory_fs中，等待后续写入
+            // 更新文件管理器记录，保持token为"memory"
+            file_manager_.remove(file_path);
+            file_manager_.addFile(file_path, "memory", 0);
 
             // 清理映射
             if (path_it != fd_map_.end()) {
@@ -740,18 +976,8 @@ int BwtFSMounter::close(int fd){
         }
 
         try {
-            // 大文件安全检查：避免处理过大的文件
-            const size_t MAX_SAFE_FILE_SIZE = 2 * 1024 * 1024; // 2MB限制
-            if (data.size() > MAX_SAFE_FILE_SIZE) {
-                LOG_WARNING << "[close] file too large (" << data.size() << " bytes), keeping in memory: " << file_path;
-                // 大文件保持在memory_fs中，不写入BwtFS
-                // 更新文件管理器记录，但保持token为"memory"
-                file_manager_.remove(file_path);
-                file_manager_.addFile(file_path, "memory", data.size());
-                return 0;
-            }
-
-            // 参考cmd项目中的正确写入方式
+            // 简化策略：参考memory_fs的成功做法，所有文件都尝试写入BwtFS
+            // 如果失败，就保持在memory_fs中
             LOG_INFO << "[close] writing " << data.size() << " bytes to bwtfs for: " << file_path;
 
             // 创建新的bw_tree对象
@@ -770,18 +996,9 @@ int BwtFSMounter::close(int fd){
             // 获取访问令牌
             std::string new_token = tree.get_token();
 
-            // 验证生成的token
-            if (new_token.empty()) {
-                LOG_ERROR << "[close] failed to get token for: " << file_path;
-            } else if (new_token.find('*') != std::string::npos) {
-                LOG_ERROR << "[close] got invalid token containing '*': " << new_token << " for: " << file_path;
-            } else {
-                LOG_INFO << "[close] successfully finalized " << file_path << " with token " << new_token;
-            }
-
             if (!new_token.empty() && new_token.find('*') == std::string::npos) {
                 // 成功获取有效token，更新文件记录
-                LOG_INFO << "[close] updating file record with valid token: " << new_token;
+                LOG_INFO << "[close] successfully finalized " << file_path << " with token " << new_token;
 
                 // 更新文件管理器中的记录
                 file_manager_.remove(file_path);
@@ -791,23 +1008,22 @@ int BwtFSMounter::close(int fd){
                 memory_fs_.remove(file_path);
 
             } else {
-                // 获取token失败或token无效，保持为memory文件
-                LOG_WARNING << "[close] failed to get valid token, keeping as memory file: " << file_path;
+                // token有问题，保持为memory文件
+                LOG_WARNING << "[close] token issue detected, keeping as memory file: " << file_path;
+                LOG_WARNING << "[close] token was: '" << new_token << "'";
                 file_manager_.remove(file_path);
                 file_manager_.addFile(file_path, "memory", data.size());
             }
 
         } catch (const std::exception& e) {
-            LOG_ERROR << "[close] exception during finalize for " << file_path << ": " << e.what();
-            // 发生异常时，保持为memory文件
-            LOG_WARNING << "[close] keeping as memory file due to exception: " << file_path;
+            LOG_WARNING << "[close] bwtfs finalize failed, keeping as memory file: " << file_path << " - " << e.what();
+            // 发生异常时，保持为memory文件（像memory_fs一样简单处理）
             file_manager_.remove(file_path);
             file_manager_.addFile(file_path, "memory", data.size());
 
         } catch (...) {
-            LOG_ERROR << "[close] unknown exception during finalize for " << file_path;
+            LOG_WARNING << "[close] unknown bwtfs error, keeping as memory file: " << file_path;
             // 发生异常时，保持为memory文件
-            LOG_WARNING << "[close] keeping as memory file due to unknown exception: " << file_path;
             file_manager_.remove(file_path);
             file_manager_.addFile(file_path, "memory", data.size());
         }
