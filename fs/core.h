@@ -4,6 +4,8 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <mutex>
+#include <set>
 #include "manager.hpp"
 
 class MemoryFS {

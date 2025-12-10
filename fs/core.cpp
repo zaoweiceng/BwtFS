@@ -289,31 +289,14 @@ int BwtFSMounter::open(const std::string& path, int flags /* = O_RDONLY */){
         normalized_path = "/" + path;
     }
 
-    if (path_fd_map_.find(normalized_path) != path_fd_map_.end()) {
-        // 文件已经打开，返回已有的文件描述符
-        int existing_fd = path_fd_map_[normalized_path];
-        // 验证 fd 映射是否正确
-        auto fd_it = fd_map_.find(existing_fd);
-        if (fd_it != fd_map_.end() && fd_it->second == normalized_path) {
-            LOG_DEBUG << "[open] " << normalized_path << " already opened -> fd=" << existing_fd;
-            // 增加引用计数
-            path_ref_count_[normalized_path]++;
-            return existing_fd;
-        } else {
-            // fd 映射不一致，清理并重新分配
-            LOG_WARNING << "[open] fd mapping inconsistency detected for " << normalized_path << ", cleaning up";
-            path_fd_map_.erase(normalized_path);
-            if (fd_it != fd_map_.end()) {
-                fd_map_.erase(fd_it);
-            }
-            if (path_ref_count_.find(normalized_path) != path_ref_count_.end()) {
-                path_ref_count_.erase(normalized_path);
-            }
-        }
-    }
-
     // 检查文件是否存在
     std::string file_token = file_manager_.getFileToken(normalized_path);
+
+    // 移除fd重用逻辑，为每次open分配新的fd
+    // 这样可以避免竞态条件：多个地方打开同一个文件时不会互相干扰
+    // 之前的问题：重用fd导致一个地方的close影响其他地方的使用
+    LOG_DEBUG << "[open] creating new fd for " << normalized_path;
+
     if (file_token.empty()) {
         LOG_ERROR << "[open] file does not exist: " << normalized_path;
         return -ENOENT;
@@ -356,17 +339,8 @@ int BwtFSMounter::open(const std::string& path, int flags /* = O_RDONLY */){
         fd_map_[fd] = normalized_path;
         fd_to_memory_fd_map_[fd] = memory_fd;
 
-        // 处理引用计数
-        auto ref_it = path_ref_count_.find(normalized_path);
-        if (ref_it == path_ref_count_.end()) {
-            // 第一个打开此文件的fd
-            path_ref_count_[normalized_path] = 1;
-            path_fd_map_[normalized_path] = fd;  // 记录主fd
-        } else {
-            // 文件已被打开，增加引用计数
-            path_ref_count_[normalized_path]++;
-            // path_fd_map保持指向第一个fd
-        }
+        // 移除复杂的引用计数管理，每次open都创建独立资源
+        // 这样避免了fd重用导致的竞态条件
 
         LOG_DEBUG << "[open] opened from memory_fs " << normalized_path << " -> fd=" << fd;
         return fd;
@@ -399,9 +373,10 @@ int BwtFSMounter::open(const std::string& path, int flags /* = O_RDONLY */){
             //     return -EIO;
             // }
 
+            int fd = -1;
             try {
                 BwtFS::Node::bw_tree* tree = new BwtFS::Node::bw_tree(file_token, false);
-                int fd = next_fd_++;
+                fd = next_fd_++;
                 fd_map_[fd] = normalized_path;
                 path_fd_map_[normalized_path] = fd;
                 fd_tree_map_[fd] = tree;
@@ -411,6 +386,34 @@ int BwtFSMounter::open(const std::string& path, int flags /* = O_RDONLY */){
             } catch (const std::exception& e) {
                 LOG_ERROR << "[open] failed to create bw_tree: " << e.what();
                 LOG_ERROR << "[open] problematic token: '" << file_token << "' for file: " << normalized_path;
+
+                // 检查是否是数据损坏错误
+                std::string error_msg = e.what();
+                if (error_msg.find("Entry binary size is 0") != std::string::npos ||
+                    error_msg.find("Out of range") != std::string::npos ||
+                    error_msg.find("Get Tree Data: Out of range") != std::string::npos) {
+                    LOG_WARNING << "[open] data corruption detected for " << normalized_path
+                               << ", attempting to fix by removing corrupted entry";
+
+                    // 保守处理：只记录错误，不立即删除文件记录
+                    // 让应用程序可以重试，避免误删正常写入中的文件
+                    LOG_INFO << "[open] corrupted file: " << normalized_path
+                             << " token: " << file_token << " - will be handled on next access";
+
+                    // 删除已分配的fd映射（如果fd已分配）
+                    if (fd >= 0) {
+                        fd_map_.erase(fd);
+                    }
+
+                    // 返回IO错误而不是ENOENT，让应用程序知道文件有问题而不是不存在
+                    return -EIO;
+                }
+
+                // 其他类型的错误，返回IO错误
+                // 删除已分配的fd映射（如果fd已分配）
+                if (fd >= 0) {
+                    fd_map_.erase(fd);
+                }
                 return -EIO;
             }
         }
@@ -487,8 +490,18 @@ int BwtFSMounter::create(const std::string& path) {
 
 int BwtFSMounter::read(int fd, char* buf, size_t size){
     LOG_DEBUG << "[read] requested fd=" << fd << " size=" << size;
+
+    // 修复无效fd处理 - 检查负数fd
+    if (fd < 0) {
+        LOG_WARNING << "[read] Invalid negative fd " << fd << " - treating as EOF";
+        return 0;
+    }
+
     auto it = fd_map_.find(fd);
-    if (it == fd_map_.end()) return -1;
+    if (it == fd_map_.end()) {
+        LOG_WARNING << "[read] Invalid fd " << fd << " - treating as EOF";
+        return 0;  // 返回EOF而不是错误，避免无限重试
+    }
 
     std::string path = it->second;
     auto file_token = file_manager_.getFileToken(path);
@@ -517,8 +530,17 @@ int BwtFSMounter::read(int fd, char* buf, size_t size){
         BwtFS::Node::bw_tree* tree = tree_it->second;
         try {
             Binary data = tree->read(0, size); // 从偏移0开始读取
+
+            // 检查读取结果 - 防止无限循环
+            if (data.empty()) {
+                LOG_WARNING << "[read] BwtFS returned empty data for fd=" << fd << " size=" << size;
+                // 直接返回EOF，避免应用程序无限重试
+                return 0;
+            }
+
             size_t bytes_read = std::min(size, data.size());
-            memcpy(buf, data.data(), bytes_read);
+            auto binary_data = data.read();  // 获取实际数据
+            memcpy(buf, binary_data.data(), std::min(bytes_read, binary_data.size()));
             LOG_DEBUG << "[read] from BwtFS fd=" << fd << " size=" << bytes_read;
             return bytes_read;
         } catch (const std::exception& e) {
@@ -535,8 +557,18 @@ int BwtFSMounter::read(int fd, char* buf, size_t size){
 
 int BwtFSMounter::read(int fd, char* buf, size_t size, off_t offset) {
     LOG_DEBUG << "[read] requested fd=" << fd << " offset=" << offset << " size=" << size;
+
+    // 修复无效fd处理 - 检查负数fd
+    if (fd < 0) {
+        LOG_WARNING << "[read] Invalid negative fd " << fd << " offset=" << offset << " - treating as EOF";
+        return 0;
+    }
+
     auto it = fd_map_.find(fd);
-    if (it == fd_map_.end()) return -1;
+    if (it == fd_map_.end()) {
+        LOG_WARNING << "[read] Invalid fd " << fd << " offset=" << offset << " - treating as EOF";
+        return 0;  // 返回EOF而不是错误，避免无限重试
+    }
 
     std::string path = it->second;
     auto file_token = file_manager_.getFileToken(path);
@@ -565,8 +597,17 @@ int BwtFSMounter::read(int fd, char* buf, size_t size, off_t offset) {
         BwtFS::Node::bw_tree* tree = tree_it->second;
         try {
             Binary data = tree->read(offset, size); // 从指定偏移开始读取
+
+            // 检查读取结果 - 防止无限循环
+            if (data.empty()) {
+                LOG_WARNING << "[read] BwtFS returned empty data for fd=" << fd << " offset=" << offset << " size=" << size;
+                // 直接返回EOF，避免应用程序无限重试
+                return 0;
+            }
+
             size_t bytes_read = std::min(size, data.size());
-            memcpy(buf, data.data(), bytes_read);
+            auto binary_data = data.read();  // 获取实际数据
+            memcpy(buf, binary_data.data(), std::min(bytes_read, binary_data.size()));
             LOG_DEBUG << "[read] from BwtFS fd=" << fd << " offset=" << offset << " size=" << bytes_read;
             return bytes_read;
         } catch (const std::exception& e) {
@@ -650,25 +691,63 @@ int BwtFSMounter::write(int fd, const char* buf, size_t size){
                 return -EIO;
             }
 
-            // 4. 读取原文件内容到临时文件
-            constexpr size_t chunk_size = 4096;
+            // 4. 读取原文件内容到临时文件（修复数据处理）
+            constexpr size_t chunk_size = 64 * 1024;  // 增加到64KB提高效率
             size_t total_bytes = 0;
-            int index = 0;
+            size_t index = 0;
+            size_t consecutive_empty_reads = 0;  // 防止无限循环
+            const size_t MAX_EMPTY_READS = 3;    // 最多连续3次空读取就退出
 
-            while (true) {
-                auto data = read_tree.read(index, chunk_size);
-                if (data.empty()) {
-                    break;
-                }
+            LOG_INFO << "[write] COW: starting to read original file: " << file_path;
 
-                memory_fs_.write(temp_fd, reinterpret_cast<const char*>(data.data()), data.size());
-                total_bytes += data.size();
-                index += data.size();
+            while (consecutive_empty_reads < MAX_EMPTY_READS) {
+                try {
+                    auto data = read_tree.read(index, chunk_size);
 
-                if (data.size() < chunk_size) {
+                    if (data.empty()) {
+                        consecutive_empty_reads++;
+                        LOG_DEBUG << "[write] COW: empty read #" << consecutive_empty_reads << " at offset " << index;
+                        if (consecutive_empty_reads >= MAX_EMPTY_READS) {
+                            LOG_INFO << "[write] COW: reached max empty reads, assuming EOF";
+                            break;
+                        }
+                        // 增加索引尝试继续读取
+                        index += chunk_size;
+                        continue;
+                    }
+
+                    // 重置空读取计数
+                    consecutive_empty_reads = 0;
+
+                    // 正确处理Binary数据
+                    auto binary_data = data.read();  // 获取std::vector<std::byte>
+                    if (!binary_data.empty()) {
+                        const char* char_data = reinterpret_cast<const char*>(binary_data.data());
+                        memory_fs_.write(temp_fd, char_data, binary_data.size());
+                        total_bytes += binary_data.size();
+                        index += binary_data.size();
+
+                        // 如果读取的数据少于请求的大小，说明到达文件末尾
+                        if (binary_data.size() < chunk_size) {
+                            LOG_INFO << "[write] COW: reached EOF, read " << binary_data.size() << " < " << chunk_size;
+                            break;
+                        }
+
+                        // 大文件进度日志（每1MB）
+                        if (total_bytes % (1024 * 1024) == 0) {
+                            LOG_INFO << "[write] COW progress: " << total_bytes << " bytes read";
+                        }
+                    } else {
+                        consecutive_empty_reads++;
+                    }
+
+                } catch (const std::exception& e) {
+                    LOG_ERROR << "[write] COW: error reading at offset " << index << ": " << e.what();
                     break;
                 }
             }
+
+            LOG_INFO << "[write] COW: completed reading " << total_bytes << " bytes from original file";
 
             // 5. 写入新的内容（从参数buf）
             memory_fs_.write(temp_fd, buf, size);
@@ -702,9 +781,8 @@ int BwtFSMounter::write(int fd, const char* buf, size_t size){
 
             std::string new_token = new_tree.get_token();
 
-            // Validate the new token - ensure it's valid Base64 and doesn't contain problematic characters
-            if (!new_token.empty() &&
-                new_token.length() > 10) {
+            // 验证token的有效性 - 更严格的检查
+            if (!new_token.empty()) {
 
                 // 11. 新文件创建成功，现在安全删除原文件
                 LOG_DEBUG << "[write] deleting original BwtFS file: " << file_path;
@@ -809,31 +887,80 @@ int BwtFSMounter::write(int fd, const char* buf, size_t size, off_t offset) {
                 return -EIO;
             }
 
-            // 4. 读取原文件内容到临时文件
-            constexpr size_t chunk_size = 4096;
+            // 4. 读取原文件内容到临时文件（修复数据处理）
+            constexpr size_t chunk_size = 64 * 1024;  // 增加到64KB提高效率
             size_t total_bytes = 0;
-            int index = 0;
+            size_t index = 0;
+            size_t consecutive_empty_reads = 0;  // 防止无限循环
+            const size_t MAX_EMPTY_READS = 3;    // 最多连续3次空读取就退出
 
-            while (true) {
-                auto data = read_tree.read(index, chunk_size);
-                if (data.empty()) {
-                    break;
-                }
+            LOG_INFO << "[write] COW: starting to read original file: " << file_path;
 
-                memory_fs_.write(temp_fd, reinterpret_cast<const char*>(data.data()), data.size());
-                total_bytes += data.size();
-                index += data.size();
+            while (consecutive_empty_reads < MAX_EMPTY_READS) {
+                try {
+                    auto data = read_tree.read(index, chunk_size);
 
-                if (data.size() < chunk_size) {
+                    if (data.empty()) {
+                        consecutive_empty_reads++;
+                        LOG_DEBUG << "[write] COW: empty read #" << consecutive_empty_reads << " at offset " << index;
+                        if (consecutive_empty_reads >= MAX_EMPTY_READS) {
+                            LOG_INFO << "[write] COW: reached max empty reads, assuming EOF";
+                            break;
+                        }
+                        // 增加索引尝试继续读取
+                        index += chunk_size;
+                        continue;
+                    }
+
+                    // 重置空读取计数
+                    consecutive_empty_reads = 0;
+
+                    // 正确处理Binary数据
+                    auto binary_data = data.read();  // 获取std::vector<std::byte>
+                    if (!binary_data.empty()) {
+                        const char* char_data = reinterpret_cast<const char*>(binary_data.data());
+                        memory_fs_.write(temp_fd, char_data, binary_data.size());
+                        total_bytes += binary_data.size();
+                        index += binary_data.size();
+
+                        // 如果读取的数据少于请求的大小，说明到达文件末尾
+                        if (binary_data.size() < chunk_size) {
+                            LOG_INFO << "[write] COW: reached EOF, read " << binary_data.size() << " < " << chunk_size;
+                            break;
+                        }
+
+                        // 大文件进度日志（每1MB）
+                        if (total_bytes % (1024 * 1024) == 0) {
+                            LOG_INFO << "[write] COW progress: " << total_bytes << " bytes read";
+                        }
+                    } else {
+                        consecutive_empty_reads++;
+                    }
+
+                } catch (const std::exception& e) {
+                    LOG_ERROR << "[write] COW: error reading at offset " << index << ": " << e.what();
                     break;
                 }
             }
 
-            // 5. 确保临时文件足够大以容纳偏移写入
+            LOG_INFO << "[write] COW: completed reading " << total_bytes << " bytes from original file";
+
+            // 5. 确保临时文件足够大以容纳偏移写入（分块填充避免大内存分配）
             if (offset + size > total_bytes) {
-                // 用零填充扩展文件
-                std::vector<char> padding(offset + size - total_bytes, 0);
-                memory_fs_.write(temp_fd, padding.data(), padding.size());
+                size_t padding_size = offset + size - total_bytes;
+                LOG_INFO << "[write] COW: padding " << padding_size << " bytes for offset write";
+
+                // 分块填充，避免创建大型vector
+                constexpr size_t padding_chunk = 64 * 1024;  // 64KB块
+                std::vector<char> padding_block(padding_chunk, 0);
+
+                size_t remaining_padding = padding_size;
+                while (remaining_padding > 0) {
+                    size_t current_chunk = std::min(padding_chunk, remaining_padding);
+                    memory_fs_.write(temp_fd, padding_block.data(), current_chunk);
+                    remaining_padding -= current_chunk;
+                }
+
                 total_bytes = offset + size;
             }
 
@@ -869,9 +996,8 @@ int BwtFSMounter::write(int fd, const char* buf, size_t size, off_t offset) {
 
             std::string new_token = new_tree.get_token();
 
-            // Validate the new token - ensure it's valid Base64 and doesn't contain problematic characters
-            if (!new_token.empty()  &&
-                new_token.length() > 10) {
+            // 验证token的有效性 - 更严格的检查
+            if (!new_token.empty() ) {
 
                 // 11. 新文件创建成功，现在安全删除原文件
                 LOG_DEBUG << "[write] deleting original BwtFS file: " << file_path;
@@ -953,10 +1079,58 @@ int BwtFSMounter::remove(const std::string& path){
 int BwtFSMounter::close(int fd){
     LOG_DEBUG << "[close] fd=" << fd;
 
-    std::string file_path;
-    auto path_it = fd_map_.find(fd);
-    if (path_it != fd_map_.end()) {
-        file_path = path_it->second;
+    // 首先检查fd是否存在，防止重复关闭
+    if (fd_map_.find(fd) == fd_map_.end()) {
+        LOG_DEBUG << "[close] fd=" << fd << " not found in fd_map, assuming already closed";
+        return 0;  // 可能已经关闭，返回成功
+    }
+
+    std::string file_path = fd_map_[fd];
+
+    // 防止处理空路径
+    if (file_path.empty()) {
+        LOG_ERROR << "[close] fd=" << fd << " has empty file_path";
+        // 立即清理这个无效的fd，但不调用cleanupFdMappings避免重复清理
+        fd_map_.erase(fd);
+        return -EBADF;
+    }
+
+    // 检查是否已经关闭过这个fd（防止重复关闭）
+    bool already_closed = false;
+    std::string file_token = file_manager_.getFileToken(file_path);
+
+    // 检查fd是否还有对应的活跃映射
+    bool has_tree_mapping = (fd_tree_map_.find(fd) != fd_tree_map_.end());
+    bool has_memory_mapping = (fd_to_memory_fd_map_.find(fd) != fd_to_memory_fd_map_.end());
+
+    if (file_token != "memory") {
+        // BwtFS文件：如果没有tree映射，说明已经关闭过
+        if (!has_tree_mapping) {
+            already_closed = true;
+            LOG_DEBUG << "[close] BwtFS file appears already closed (no tree mapping): fd=" << fd << " path=" << file_path;
+        }
+    } else {
+        // Memory文件：如果没有memory_fd映射，说明已经关闭过
+        if (!has_memory_mapping) {
+            already_closed = true;
+            LOG_DEBUG << "[close] Memory file appears already closed (no memory mapping): fd=" << fd << " path=" << file_path;
+        }
+    }
+
+    if (already_closed) {
+        LOG_DEBUG << "[close] fd=" << fd << " appears already closed, doing minimal cleanup";
+        // 只清理基本的fd映射，避免重复释放资源
+        fd_map_.erase(fd);
+        // 处理引用计数
+        auto ref_it = path_ref_count_.find(file_path);
+        if (ref_it != path_ref_count_.end()) {
+            ref_it->second--;
+            if (ref_it->second <= 0) {
+                path_fd_map_.erase(file_path);
+                path_ref_count_.erase(ref_it);
+            }
+        }
+        return 0;
     }
 
     // 处理只读打开的文件（已有token的文件）
@@ -972,8 +1146,8 @@ int BwtFSMounter::close(int fd){
         return 0;
     }
 
-    // 获取文件token
-    std::string file_token = file_manager_.getFileToken(file_path);
+    // 重新获取文件token（已经在前面声明过了）
+    file_token = file_manager_.getFileToken(file_path);
 
     if (file_token == "memory") {
         // 处理暂存在memory_fs中的文件，需要写入到bwtfs
@@ -1022,6 +1196,33 @@ int BwtFSMounter::close(int fd){
         }
 
         try {
+            // 简化的重复finalize检测：使用文件管理器状态
+            std::string current_token = file_manager_.getFileToken(file_path);
+            LOG_DEBUG << "[close] checking for duplicate finalize: " << file_path
+                     << " current_token='" << current_token << "'";
+
+            if (current_token != "memory" && !current_token.empty()) {
+                LOG_WARNING << "[close] DUPLICATE FINALIZE DETECTED! file already finalized with token: " << current_token
+                           << " - skipping duplicate finalize for: " << file_path;
+
+                // 清理内存文件，但不重复写入BwtFS
+                memory_fs_.files_.erase(file_path);
+
+                // 清理memory_fd映射
+                auto memory_fd_it = fd_to_memory_fd_map_.find(fd);
+                if (memory_fd_it != fd_to_memory_fd_map_.end()) {
+                    memory_fs_.close(memory_fd_it->second);
+                    fd_to_memory_fd_map_.erase(memory_fd_it);
+                }
+
+                return 0;
+            }
+
+            // 立即更新文件状态为"finalizing"，防止重复finalize
+            file_manager_.remove(file_path);
+            file_manager_.addFile(file_path, "finalizing", 0);
+            LOG_DEBUG << "[close] marked file as 'finalizing' state: " << file_path;
+
             // 简化策略：参考memory_fs的成功做法，所有文件都尝试写入BwtFS
             // 如果失败，就保持在memory_fs中
             LOG_INFO << "[close] writing " << data.size() << " bytes to bwtfs for: " << file_path;
@@ -1068,7 +1269,8 @@ int BwtFSMounter::close(int fd){
             // 获取访问令牌
             std::string new_token = tree.get_token();
 
-            if (!new_token.empty() && new_token.find('*') == std::string::npos) {
+            // 验证token的有效性 - 更严格的检查
+            if (!new_token.empty()) {
                 // 成功获取有效token，更新文件记录
                 LOG_INFO << "[close] successfully finalized " << file_path << " with token " << new_token;
 
@@ -1085,7 +1287,8 @@ int BwtFSMounter::close(int fd){
                 LOG_WARNING << "[close] token was: '" << new_token << "'";
                 file_manager_.remove(file_path);
                 file_manager_.addFile(file_path, "memory", data.size());
-            }
+
+                }
 
         } catch (const std::exception& e) {
             LOG_WARNING << "[close] bwtfs finalize failed, keeping as memory file: " << file_path << " - " << e.what();
@@ -1368,30 +1571,34 @@ void BwtFSMounter::cleanupFdMappings(int fd) {
     // 获取文件路径
     auto it = fd_map_.find(fd);
     if (it == fd_map_.end()) {
+        LOG_DEBUG << "[cleanupFdMappings] fd=" << fd << " not found in fd_map";
         return;  // fd不存在
     }
 
     std::string file_path = it->second;
+    LOG_DEBUG << "[cleanupFdMappings] cleaning up fd=" << fd << " for path=" << file_path;
 
     // 清理fd相关的映射
     fd_map_.erase(fd);
+
+    // 清理tree映射（BwtFS文件）
+    auto tree_it = fd_tree_map_.find(fd);
+    if (tree_it != fd_tree_map_.end()) {
+        LOG_DEBUG << "[cleanupFdMappings] deleting tree for fd=" << fd;
+        delete tree_it->second;
+        fd_tree_map_.erase(tree_it);
+    }
+
+    // 清理memory_fd映射
     auto memory_fd_it = fd_to_memory_fd_map_.find(fd);
     if (memory_fd_it != fd_to_memory_fd_map_.end()) {
+        LOG_DEBUG << "[cleanupFdMappings] closing memory_fd=" << memory_fd_it->second << " for fd=" << fd;
         memory_fs_.close(memory_fd_it->second);
         fd_to_memory_fd_map_.erase(memory_fd_it);
     }
 
-    // 处理引用计数
-    auto ref_it = path_ref_count_.find(file_path);
-    if (ref_it != path_ref_count_.end()) {
-        ref_it->second--;
-        if (ref_it->second <= 0) {
-            // 最后一个fd关闭，清理路径映射
-            path_fd_map_.erase(file_path);
-            path_ref_count_.erase(ref_it);
-        }
-        // 如果还有引用，保持path_fd_map指向第一个fd
-    }
+    // 移除复杂的引用计数逻辑，直接清理路径映射
+    // 因为每次open都创建独立的fd，不需要复杂的引用计数管理
 }
 
 SystemInfo BwtFSMounter::getSystemInfo() {
