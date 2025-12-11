@@ -310,6 +310,74 @@ export class FileManager {
     }
   }
 
+  // 递归搜索文件和文件夹
+  searchFiles(query: string, searchPath: string = ''): FileInfo[] {
+    const results: FileInfo[] = [];
+    const queryLower = query.toLowerCase();
+
+    if (!query.trim()) {
+      return results;
+    }
+
+    // 递归搜索函数
+    const searchRecursive = (current: FileStructure, currentPath: string, depth: number = 0): void => {
+      // 防止无限递归
+      if (depth > 10) return;
+
+      for (const [name, node] of Object.entries(current)) {
+        const fullPath = currentPath ? `${currentPath}/${name}` : name;
+
+        // 检查名称是否匹配查询
+        if (name.toLowerCase().includes(queryLower)) {
+          results.push({
+            name,
+            is_dir: node.is_dir,
+            file_size: node.file_size || 0,
+            token: node.token || '',
+            path: fullPath,
+            parent_path: currentPath
+          });
+        }
+
+        // 如果是目录，递归搜索子目录
+        if (node.is_dir && node.children) {
+          searchRecursive(node.children, fullPath, depth + 1);
+        }
+      }
+    };
+
+    // 如果指定了搜索路径，从该路径开始搜索；否则从根目录搜索
+    if (searchPath) {
+      const targetPath = searchPath.replace(/^\/+/, '').replace(/\/+$/, '');
+      let current: FileStructure = this.fileStructure;
+
+      if (targetPath) {
+        const pathParts = targetPath.split('/').filter(part => part);
+        for (const part of pathParts) {
+          const node = current[part];
+          if (node && node.is_dir) {
+            current = node.children || {};
+          } else {
+            return []; // 路径不存在或不是目录
+          }
+        }
+      }
+
+      searchRecursive(current, targetPath);
+    } else {
+      searchRecursive(this.fileStructure, '');
+    }
+
+    // 按类型和名称排序：目录优先，然后按名称排序
+    return results.sort((a, b) => {
+      // 目录优先
+      if (a.is_dir && !b.is_dir) return -1;
+      if (!a.is_dir && b.is_dir) return 1;
+      // 按名称排序
+      return a.name.localeCompare(b.name);
+    });
+  }
+
   // 获取文件信息
   getFileInfo(path: string): FileInfo | null {
     const pathParts = path.replace(/^\/+/, '').replace(/\/+$/, '').split('/').filter(part => part);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Upload, FolderPlus, RefreshCw, Download, MoreVertical, Eye } from 'lucide-react';
+import { Upload, FolderPlus, RefreshCw, Download, MoreVertical, Eye, Search, X } from 'lucide-react';
 import { fileApi } from '../services/api';
 import { fileManager } from '../services/fileManager';
 import { FileInfo, UploadProgress } from '../types';
@@ -8,6 +8,7 @@ import FilePreview from './FilePreview';
 
 const FileManager: React.FC = () => {
   const [files, setFiles] = useState<FileInfo[]>([]);
+  const [allFiles, setAllFiles] = useState<FileInfo[]>([]); // 存储所有文件用于搜索
   const [currentPath, setCurrentPath] = useState<string>('');
   const [pathSegments, setPathSegments] = useState<string[]>([]);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
@@ -20,6 +21,8 @@ const FileManager: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [previewFile, setPreviewFile] = useState<FileInfo | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
     loadFiles();
@@ -28,7 +31,30 @@ const FileManager: React.FC = () => {
   const loadFiles = () => {
     const fileList = fileManager.listDirectory(currentPath);
     setFiles(fileList);
+    setAllFiles(fileList); // 保存所有文件用于搜索
     updatePathSegments();
+  };
+
+  const handleSearch = (query: string) => {
+    setSearchQuery(query);
+    setIsSearching(query.trim() !== '');
+
+    if (query.trim() === '') {
+      // 搜索为空时显示当前目录文件
+      setFiles(allFiles);
+      return;
+    }
+
+    // 使用递归搜索所有文件和文件夹
+    const searchResults = fileManager.searchFiles(query, currentPath);
+    setFiles(searchResults);
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    setIsSearching(false);
+    // 清除搜索时重新加载当前目录的文件
+    loadFiles();
   };
 
   const updatePathSegments = () => {
@@ -42,8 +68,13 @@ const FileManager: React.FC = () => {
 
   const handleFolderClick = (file: FileInfo) => {
     if (file.is_dir) {
-      const newPath = currentPath ? `${currentPath}/${file.name}` : file.name;
-      setCurrentPath(newPath);
+      // 如果是搜索状态，使用文件中的完整路径
+      if (isSearching) {
+        setCurrentPath(file.path);
+      } else {
+        const newPath = currentPath ? `${currentPath}/${file.name}` : file.name;
+        setCurrentPath(newPath);
+      }
     }
   };
 
@@ -248,6 +279,27 @@ const FileManager: React.FC = () => {
           </div>
 
           <div className="toolbar">
+            <div className="search-container">
+              <div className="search-input-wrapper">
+                <Search size={16} className="search-icon" />
+                <input
+                  type="text"
+                  className="search-input"
+                  placeholder="搜索文件或文件夹..."
+                  value={searchQuery}
+                  onChange={(e) => handleSearch(e.target.value)}
+                />
+                {searchQuery && (
+                  <button
+                    className="search-clear"
+                    onClick={clearSearch}
+                    title="清除搜索"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
             <button
               className="btn btn-primary"
               onClick={() => setShowUploadDialog(true)}
@@ -303,7 +355,12 @@ const FileManager: React.FC = () => {
                    isMarkdownFile(file.name) ? '📝' :
                    isTextFile(file.name) ? '📄' : '📄'}
                 </span>
-                <span className="file-name">{file.name}</span>
+                <div className="file-info">
+                  <span className="file-name">{file.name}</span>
+                  {isSearching && file.path && (
+                    <span className="file-path">/{file.path}</span>
+                  )}
+                </div>
                 {file.is_dir && (
                   <span className="folder-tag">文件夹</span>
                 )}
@@ -315,30 +372,32 @@ const FileManager: React.FC = () => {
                 {file.file_size ? formatFileSize(file.file_size) : '-'}
               </div>
               <div className="file-actions">
-                {canPreview(file) && (
-                  <button
-                    className="btn btn-sm btn-info"
-                    onClick={(e) => {
-                      e.stopPropagation();
+                <button
+                  className={`btn btn-sm ${canPreview(file) ? 'btn-info' : 'btn-secondary'}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (canPreview(file)) {
                       handlePreview(file);
-                    }}
-                    title="预览"
-                  >
-                    <Eye size={14} />
-                  </button>
-                )}
-                {!file.is_dir && (
-                  <button
-                    className="btn btn-sm btn-primary"
-                    onClick={(e) => {
-                      e.stopPropagation();
+                    }
+                  }}
+                  title={canPreview(file) ? "预览" : "不支持预览此类型"}
+                  disabled={!canPreview(file)}
+                >
+                  <Eye size={14} />
+                </button>
+                <button
+                  className={`btn btn-sm ${!file.is_dir ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!file.is_dir) {
                       handleFileDownload(file);
-                    }}
-                    title="下载"
-                  >
-                    <Download size={14} />
-                  </button>
-                )}
+                    }
+                  }}
+                  title={!file.is_dir ? "下载" : "文件夹不支持下载"}
+                  disabled={file.is_dir}
+                >
+                  <Download size={14} />
+                </button>
                 <button
                   className="btn btn-sm btn-secondary"
                   onClick={(e) => {
@@ -367,7 +426,11 @@ const FileManager: React.FC = () => {
 
           {files.length === 0 && (
             <div className="empty-state">
-              <p>此文件夹为空</p>
+              {isSearching ? (
+                <p>未找到匹配 "{searchQuery}" 的文件或文件夹</p>
+              ) : (
+                <p>此文件夹为空</p>
+              )}
             </div>
           )}
         </div>
