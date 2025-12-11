@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Upload, FolderPlus, RefreshCw, Download, MoreVertical } from 'lucide-react';
+import { Upload, FolderPlus, RefreshCw, Download, MoreVertical, Eye } from 'lucide-react';
 import { fileApi } from '../services/api';
 import { fileManager } from '../services/fileManager';
 import { FileInfo, UploadProgress } from '../types';
 import { showNotification } from './Notification';
+import FilePreview from './FilePreview';
 
 const FileManager: React.FC = () => {
   const [files, setFiles] = useState<FileInfo[]>([]);
@@ -17,26 +18,12 @@ const FileManager: React.FC = () => {
   const [newFolderName, setNewFolderName] = useState('');
   const [newFileName, setNewFileName] = useState('');
   const [loading, setLoading] = useState(false);
-  const [dropdownOpen, setDropdownOpen] = useState<string | null>(null);
-  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number } | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewFile, setPreviewFile] = useState<FileInfo | null>(null);
 
   useEffect(() => {
     loadFiles();
   }, [currentPath]);
-
-  useEffect(() => {
-    // 点击外部关闭下拉菜单
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Element;
-      if (!target.closest('.relative')) {
-        setDropdownOpen(null);
-        setDropdownPosition(null);
-      }
-    };
-
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, []);
 
   const loadFiles = () => {
     const fileList = fileManager.listDirectory(currentPath);
@@ -177,6 +164,46 @@ const FileManager: React.FC = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  const getFileExtension = (filename: string): string => {
+    return filename.split('.').pop()?.toLowerCase() || '';
+  };
+
+  const isImageFile = (filename: string): boolean => {
+    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'ico'];
+    return imageExtensions.includes(getFileExtension(filename));
+  };
+
+  const isPdfFile = (filename: string): boolean => {
+    return getFileExtension(filename) === 'pdf';
+  };
+
+  const isTextFile = (filename: string): boolean => {
+    const textExtensions = ['txt', 'md', 'markdown', 'json', 'xml', 'csv', 'log', 'ini', 'config', 'yml', 'yaml', 'js', 'ts', 'html', 'css', 'sql', 'py', 'java', 'cpp', 'c', 'h', 'hpp', 'sh', 'bat', 'ps1'];
+    return textExtensions.includes(getFileExtension(filename));
+  };
+
+  const isMarkdownFile = (filename: string): boolean => {
+    const markdownExtensions = ['md', 'markdown'];
+    return markdownExtensions.includes(getFileExtension(filename));
+  };
+
+  const canPreview = (file: FileInfo): boolean => {
+    if (file.is_dir || !file.token) return false;
+    return isImageFile(file.name) || isPdfFile(file.name) || isTextFile(file.name);
+  };
+
+  const handlePreview = (file: FileInfo) => {
+    if (canPreview(file)) {
+      setPreviewFile(file);
+      setShowPreview(true);
+    }
+  };
+
+  const closePreview = () => {
+    setShowPreview(false);
+    setPreviewFile(null);
+  };
+
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -250,7 +277,6 @@ const FileManager: React.FC = () => {
           <div className="file-list-header">
             <div className="file-name-header">名称</div>
             <div className="file-size-header">大小</div>
-            <div className="file-date-header">修改时间</div>
             <div className="file-actions-header">操作</div>
           </div>
 
@@ -258,112 +284,83 @@ const FileManager: React.FC = () => {
             <div key={index} className={`file-row ${file.is_dir ? 'folder' : 'file'}`}>
               <div
                 className="file-name-cell"
-                onClick={() => file.is_dir && handleFolderClick(file)}
-                style={{ cursor: file.is_dir ? 'pointer' : 'default' }}
+                onClick={() => {
+                  if (file.is_dir) {
+                    handleFolderClick(file);
+                  } else if (canPreview(file)) {
+                    handlePreview(file);
+                  }
+                }}
+                style={{
+                  cursor: file.is_dir || canPreview(file) ? 'pointer' : 'default',
+                  color: canPreview(file) ? '#1a73e8' : 'inherit'
+                }}
               >
                 <span className="file-icon">
-                  {file.is_dir ? '📁' : '📄'}
+                  {file.is_dir ? '📁' :
+                   isImageFile(file.name) ? '🖼️' :
+                   isPdfFile(file.name) ? '📕' :
+                   isMarkdownFile(file.name) ? '📝' :
+                   isTextFile(file.name) ? '📄' : '📄'}
                 </span>
                 <span className="file-name">{file.name}</span>
                 {file.is_dir && (
                   <span className="folder-tag">文件夹</span>
                 )}
+                {canPreview(file) && (
+                  <span className="preview-tag">可预览</span>
+                )}
               </div>
               <div className="file-size">
                 {file.file_size ? formatFileSize(file.file_size) : '-'}
               </div>
-              <div className="file-date">-</div>
               <div className="file-actions">
+                {canPreview(file) && (
+                  <button
+                    className="btn btn-sm btn-info"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePreview(file);
+                    }}
+                    title="预览"
+                  >
+                    <Eye size={14} />
+                  </button>
+                )}
                 {!file.is_dir && (
                   <button
                     className="btn btn-sm btn-primary"
-                    onClick={() => handleFileDownload(file)}
-                  >
-                    <Download size={14} />
-                    下载
-                  </button>
-                )}
-                <div className="relative">
-                  <button
-                    className="btn btn-sm btn-secondary"
                     onClick={(e) => {
                       e.stopPropagation();
-                      const button = e.currentTarget;
-                      const rect = button.getBoundingClientRect();
-
-                      if (dropdownOpen === file.name) {
-                        setDropdownOpen(null);
-                        setDropdownPosition(null);
-                      } else {
-                        setDropdownOpen(file.name);
-                        // 计算下拉菜单位置
-                        const dropdownWidth = 120;
-                        const dropdownHeight = 80; // 预估下拉菜单高度
-                        const margin = 4;
-
-                        let left = rect.right - dropdownWidth;
-                        let top = rect.bottom + margin;
-
-                        // 确保不超出屏幕右边界
-                        if (left + dropdownWidth > window.innerWidth) {
-                          left = window.innerWidth - dropdownWidth - margin;
-                        }
-
-                        // 确保不超出屏幕左边界
-                        if (left < margin) {
-                          left = margin;
-                        }
-
-                        // 确保不超出屏幕底部
-                        if (top + dropdownHeight > window.innerHeight) {
-                          top = rect.top - dropdownHeight - margin;
-                        }
-
-                        // 确保不超出屏幕顶部
-                        if (top < margin) {
-                          top = margin;
-                        }
-
-                        setDropdownPosition({ top, left });
-                      }
+                      handleFileDownload(file);
                     }}
+                    title="下载"
                   >
-                    <MoreVertical size={14} />
+                    <Download size={14} />
                   </button>
-                  {dropdownOpen === file.name && dropdownPosition && (
-                    <div
-                      className="dropdown-menu"
-                      style={{
-                        top: `${dropdownPosition.top}px`,
-                        left: `${dropdownPosition.left}px`
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <button
-                        className="dropdown-item"
-                        onClick={() => {
-                          setSelectedFile(file);
-                          setNewFileName(file.name);
-                          setShowRenameDialog(true);
-                          setDropdownOpen(null);
-                          setDropdownPosition(null);
-                        }}
-                      >
-                        重命名
-                      </button>
-                      <button
-                        className="dropdown-item danger"
-                        onClick={() => {
-                          handleDelete(file);
-                          setDropdownOpen(null);
-                          setDropdownPosition(null);
-                        }}
-                      >
-                        删除
-                      </button>
-                    </div>
-                  )}
-                </div>
+                )}
+                <button
+                  className="btn btn-sm btn-secondary"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedFile(file);
+                    setNewFileName(file.name);
+                    setShowRenameDialog(true);
+                  }}
+                  title="重命名"
+                >
+                  重命名
+                </button>
+                <button
+                  className="btn btn-sm btn-danger"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDelete(file);
+                  }}
+                  title="删除"
+                >
+                  删除
+                </button>
               </div>
             </div>
           ))}
@@ -493,6 +490,14 @@ const FileManager: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 文件预览模态框 */}
+      {showPreview && previewFile && (
+        <FilePreview
+          file={previewFile}
+          onClose={closePreview}
+        />
       )}
     </div>
   );
