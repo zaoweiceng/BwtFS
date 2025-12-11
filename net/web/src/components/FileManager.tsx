@@ -3,6 +3,7 @@ import { Upload, FolderPlus, RefreshCw, Download, MoreVertical } from 'lucide-re
 import { fileApi } from '../services/api';
 import { fileManager } from '../services/fileManager';
 import { FileInfo, UploadProgress } from '../types';
+import { showNotification } from './Notification';
 
 const FileManager: React.FC = () => {
   const [files, setFiles] = useState<FileInfo[]>([]);
@@ -17,10 +18,25 @@ const FileManager: React.FC = () => {
   const [newFileName, setNewFileName] = useState('');
   const [loading, setLoading] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState<string | null>(null);
+  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number } | null>(null);
 
   useEffect(() => {
     loadFiles();
   }, [currentPath]);
+
+  useEffect(() => {
+    // 点击外部关闭下拉菜单
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (!target.closest('.relative')) {
+        setDropdownOpen(null);
+        setDropdownPosition(null);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
 
   const loadFiles = () => {
     const fileList = fileManager.listDirectory(currentPath);
@@ -59,11 +75,11 @@ const FileManager: React.FC = () => {
         fileManager.addFile(filePath, response.token, file.size);
         loadFiles();
         setShowUploadDialog(false);
-        alert(`文件上传成功！Token: ${response.token}`);
+        showNotification(`文件上传成功！Token: ${response.token}`, 'success');
       }
     } catch (error) {
       console.error('Upload failed:', error);
-      alert('文件上传失败');
+      showNotification('文件上传失败', 'error');
     } finally {
       setLoading(false);
       setUploadProgress(null);
@@ -72,7 +88,7 @@ const FileManager: React.FC = () => {
 
   const handleFileDownload = async (file: FileInfo) => {
     if (!file.token) {
-      alert('文件Token不存在');
+      showNotification('文件Token不存在', 'error');
       return;
     }
 
@@ -88,7 +104,7 @@ const FileManager: React.FC = () => {
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Download failed:', error);
-      alert('文件下载失败');
+      showNotification('文件下载失败', 'error');
     }
   };
 
@@ -107,16 +123,16 @@ const FileManager: React.FC = () => {
       const filePath = currentPath ? `${currentPath}/${file.name}` : file.name;
       fileManager.deleteItem(filePath);
       loadFiles();
-      alert('删除成功');
+      showNotification('删除成功', 'success');
     } catch (error) {
       console.error('Delete failed:', error);
-      alert('删除失败');
+      showNotification('删除失败', 'error');
     }
   };
 
   const handleCreateFolder = () => {
     if (!newFolderName.trim()) {
-      alert('请输入文件夹名称');
+      showNotification('请输入文件夹名称', 'warning');
       return;
     }
 
@@ -127,15 +143,15 @@ const FileManager: React.FC = () => {
       loadFiles();
       setShowCreateFolderDialog(false);
       setNewFolderName('');
-      alert('文件夹创建成功');
+      showNotification('文件夹创建成功', 'success');
     } else {
-      alert('文件夹创建失败');
+      showNotification('文件夹创建失败', 'error');
     }
   };
 
   const handleRename = () => {
     if (!newFileName.trim() || !selectedFile) {
-      alert('请输入新文件名');
+      showNotification('请输入新文件名', 'warning');
       return;
     }
 
@@ -147,9 +163,9 @@ const FileManager: React.FC = () => {
       setShowRenameDialog(false);
       setNewFileName('');
       setSelectedFile(null);
-      alert('重命名成功');
+      showNotification('重命名成功', 'success');
     } else {
-      alert('重命名失败');
+      showNotification('重命名失败', 'error');
     }
   };
 
@@ -270,12 +286,59 @@ const FileManager: React.FC = () => {
                 <div className="relative">
                   <button
                     className="btn btn-sm btn-secondary"
-                    onClick={() => setDropdownOpen(dropdownOpen === file.name ? null : file.name)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const button = e.currentTarget;
+                      const rect = button.getBoundingClientRect();
+
+                      if (dropdownOpen === file.name) {
+                        setDropdownOpen(null);
+                        setDropdownPosition(null);
+                      } else {
+                        setDropdownOpen(file.name);
+                        // 计算下拉菜单位置
+                        const dropdownWidth = 120;
+                        const dropdownHeight = 80; // 预估下拉菜单高度
+                        const margin = 4;
+
+                        let left = rect.right - dropdownWidth;
+                        let top = rect.bottom + margin;
+
+                        // 确保不超出屏幕右边界
+                        if (left + dropdownWidth > window.innerWidth) {
+                          left = window.innerWidth - dropdownWidth - margin;
+                        }
+
+                        // 确保不超出屏幕左边界
+                        if (left < margin) {
+                          left = margin;
+                        }
+
+                        // 确保不超出屏幕底部
+                        if (top + dropdownHeight > window.innerHeight) {
+                          top = rect.top - dropdownHeight - margin;
+                        }
+
+                        // 确保不超出屏幕顶部
+                        if (top < margin) {
+                          top = margin;
+                        }
+
+                        setDropdownPosition({ top, left });
+                      }
+                    }}
                   >
                     <MoreVertical size={14} />
                   </button>
-                  {dropdownOpen === file.name && (
-                    <div className="dropdown-menu">
+                  {dropdownOpen === file.name && dropdownPosition && (
+                    <div
+                      className="dropdown-menu"
+                      style={{
+                        top: `${dropdownPosition.top}px`,
+                        left: `${dropdownPosition.left}px`
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <button
                         className="dropdown-item"
                         onClick={() => {
@@ -283,6 +346,7 @@ const FileManager: React.FC = () => {
                           setNewFileName(file.name);
                           setShowRenameDialog(true);
                           setDropdownOpen(null);
+                          setDropdownPosition(null);
                         }}
                       >
                         重命名
@@ -292,6 +356,7 @@ const FileManager: React.FC = () => {
                         onClick={() => {
                           handleDelete(file);
                           setDropdownOpen(null);
+                          setDropdownPosition(null);
                         }}
                       >
                         删除
