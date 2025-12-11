@@ -422,10 +422,7 @@ std::string BwtFS::Node::Binary::to_ascll_string() const{
 }
 
 std::string base64_encode(const std::vector<std::byte>& input) {
-    static constexpr char base64_chars[] = 
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        "abcdefghijklmnopqrstuvwxyz"
-        "0123456789*-";
+    const std::string base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
     const unsigned char* data = reinterpret_cast<const unsigned char*>(input.data());
     size_t input_len = input.size();

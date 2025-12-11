@@ -72,3 +72,8 @@ else()
         target_link_libraries(${BINARY} PRIVATE rt)
     endif()
 endif()
+
+# 设置输出目录
+set_target_properties(${BINARY} PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin  # 可执行文件输出目录
+)
