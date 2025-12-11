@@ -25,16 +25,16 @@ if(WIN32)
 endif()
 
 # net: 对象存储服务
-# add_subdirectory(lib/boost)
-# set(BOOST_INCLUDE_LIBRARIES "system,filesystem,beast,asio,json,config,
-#                             core,static_assert,preprocessor,throw_exception,
-#                             assert,align,error_code,winapi,chrono,predef,
-#                             utility,optional,type_traits,date_time,smart_ptr,
-#                             numeric_conversion,mpl,mp11,bind,intrusive,
-#                             move,logic,static_string,container_hash,describe,
-#                             variant,graph,graph_parallel,io,regex,serialization,
-#                             locale,algorithm,endian")
-# add_subdirectory(net)
+add_subdirectory(lib/boost)
+set(BOOST_INCLUDE_LIBRARIES "system,filesystem,beast,asio,json,config,
+                            core,static_assert,preprocessor,throw_exception,
+                            assert,align,error_code,winapi,chrono,predef,
+                            utility,optional,type_traits,date_time,smart_ptr,
+                            numeric_conversion,mpl,mp11,bind,intrusive,
+                            move,logic,static_string,container_hash,describe,
+                            variant,graph,graph_parallel,io,regex,serialization,
+                            locale,algorithm,endian")
+add_subdirectory(net)
 
 # src： 核心代码
 add_subdirectory(src)

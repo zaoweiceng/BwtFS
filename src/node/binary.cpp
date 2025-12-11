@@ -420,9 +420,8 @@ std::string BwtFS::Node::Binary::to_ascll_string() const{
         return "";
     return BINARY_TO_ASCll(*this->binary_array, this->binary_array->size());
 }
-
+const std::string base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-";
 std::string base64_encode(const std::vector<std::byte>& input) {
-    const std::string base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
     const unsigned char* data = reinterpret_cast<const unsigned char*>(input.data());
     size_t input_len = input.size();
@@ -457,8 +456,6 @@ std::string base64_encode(const std::vector<std::byte>& input) {
 }
 
 std::vector<std::byte> base64_to_bytes(const std::string& input) {
-    const std::string base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    
     // 创建解码表（字符到6位值）
     std::array<int, 256> decode_table{};
     for (auto& elem : decode_table) elem = -1;

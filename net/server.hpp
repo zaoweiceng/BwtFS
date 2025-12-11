@@ -520,7 +520,7 @@ class http_connection : public std::enable_shared_from_this<http_connection> {
             if (path.length() > 1 && path[0] == '/') {
                 path = path.substr(1);
                 LOG_DEBUG << "path is " << path;
-                if (path.length() < 30 || path.find('/') != std::string::npos) {
+                if (path.length() < 20 || path.find('/') != std::string::npos) {
                     LOG_ERROR << "Invalid token";
                     _response.result(http::status::bad_request);
                     _response.set(http::field::content_type, "text/plain");
