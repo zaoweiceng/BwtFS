@@ -80,9 +80,15 @@ class http_connection : public std::enable_shared_from_this<http_connection> {
         void process_request() {
             _response.version(_request.get().version());
             _response.keep_alive(false); // true是长连接,false是短连接
-            // LOG_INFO << "Processing request: " 
-            //     << _request.get().method_string() << " " 
-            //     << _request.get().target() << ", size: " 
+
+            // 添加CORS头部
+            _response.set(http::field::access_control_allow_origin, "*");
+            _response.set(http::field::access_control_allow_methods, "GET, POST, PUT, DELETE, OPTIONS");
+            _response.set(http::field::access_control_allow_headers, "Content-Type, X-File-Id, X-Chunk-Index, X-Total-Chunks, X-File-Size, X-File-Type, Connection");
+
+            // LOG_INFO << "Processing request: "
+            //     << _request.get().method_string() << " "
+            //     << _request.get().target() << ", size: "
             //     << _request.get().body().size();
             switch (_request.get().method()) {
             case http::verb::get:
@@ -102,6 +108,13 @@ class http_connection : public std::enable_shared_from_this<http_connection> {
                 _response.set(http::field::server, SERVER_NAME);
                 _response.keep_alive(false);
                 create_delete_response();
+                break;
+            case http::verb::options:
+                // 处理OPTIONS请求（CORS预检）
+                _response.result(http::status::ok);
+                _response.set(http::field::server, SERVER_NAME);
+                _response.set(http::field::content_length, "0");
+                is_finished = true;
                 break;
             default:
                 _response.result(http::status::method_not_allowed);
@@ -421,6 +434,7 @@ class http_connection : public std::enable_shared_from_this<http_connection> {
                         </body>
                         </html>
                     )";
+                    return;
                     // << "<html>\n"
                     // << "<head><title>Welcome to BwtFS</title></head>\n"
                     // << "<body>\n"
@@ -475,12 +489,10 @@ class http_connection : public std::enable_shared_from_this<http_connection> {
                     //     const CHUNK_SIZE = 1024 * 1024; // 1MB
                     //     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
                     //     const fileId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-
                     //     for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
                     //         const start = chunkIndex * CHUNK_SIZE;
                     //         const end = Math.min(start + CHUNK_SIZE, file.size);
                     //         const chunk = file.slice(start, end);
-
                     //         await fetch('/upload', {
                     //             method: 'POST',
                     //             headers: {
@@ -517,6 +529,55 @@ class http_connection : public std::enable_shared_from_this<http_connection> {
                     // << "</html>\n";
             }
             std::string path = _request.get().target();
+            if (_request.get().target() == "/favicon.ico"){
+                // _response.result(http::status::not_found);
+                // _response.set(http::field::content_type, "text/plain");
+                // beast::ostream(_response.body()) << "Not Found";
+                // 返回当前目录下的favicon.ico文件的二进制（如果存在该文件）
+                path = "./favicon.ico";
+                _response.result(http::status::ok);
+                _response.set(http::field::content_type, "image/x-icon");
+                _response.set(http::field::server, SERVER_NAME);
+                beast::error_code ec;
+                http::file_body::value_type body;
+                body.open(path.c_str(), beast::file_mode::scan, ec);
+                if(ec) {
+                    LOG_ERROR << "Open favicon.ico error: " << ec.message();
+                    _response.result(http::status::not_found);
+                    _response.set(http::field::content_type, "text/plain");
+                    beast::ostream(_response.body()) << "Not Found";
+                }else {
+                    _response.content_length(_response.body().size());
+                }
+                return;
+            }
+            if (_request.get().target() == "/robots.txt"){
+                _response.result(http::status::ok);
+                _response.set(http::field::content_type, "text/plain");
+                _response.set(http::field::server, SERVER_NAME);
+                beast::ostream(_response.body())
+                    << "User-agent: *\n"
+                    << "Disallow: /delete/\n";
+                return;
+            }
+            if (_request.get().target() == "/system_size"){
+                _response.result(http::status::ok);
+                _response.set(http::field::content_type, "application/json");
+                _response.set(http::field::server, SERVER_NAME);
+                boost::json::object obj;
+                obj["system_size"] = BwtFS::System::getBwtFS()->getFileSize();
+                beast::ostream(_response.body()) << boost::json::serialize(obj);
+                return;
+            }
+            if (_request.get().target() == "/free_size"){
+                _response.result(http::status::ok);
+                _response.set(http::field::content_type, "application/json");
+                _response.set(http::field::server, SERVER_NAME);
+                boost::json::object obj;
+                obj["free_size"] = BwtFS::System::getBwtFS()->getFreeSize();
+                beast::ostream(_response.body()) << boost::json::serialize(obj);
+                return;
+            }
             if (path.length() > 1 && path[0] == '/') {
                 path = path.substr(1);
                 LOG_DEBUG << "path is " << path;
