@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { X, Download, Copy, Check } from 'lucide-react';
+import { X, Download, Copy, Check, Maximize2, Minimize2 } from 'lucide-react';
 import { fileApi } from '../services/api';
 import { showNotification } from './Notification';
 import { FileInfo } from '../types';
@@ -18,6 +18,7 @@ const FilePreview: React.FC<FilePreviewProps> = ({ file, onClose }) => {
     const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string>('');
+  const [isMaximized, setIsMaximized] = useState(false);
 
   const getFileExtension = (filename: string): string => {
     return filename.split('.').pop()?.toLowerCase() || '';
@@ -175,6 +176,10 @@ const FilePreview: React.FC<FilePreviewProps> = ({ file, onClose }) => {
     }
   };
 
+  const toggleMaximize = () => {
+    setIsMaximized(!isMaximized);
+  };
+
   const renderContent = () => {
     console.log('renderContent called - loading:', loading, 'error:', error, 'pdfUrl:', !!pdfUrl, 'imageUrl:', !!imageUrl, 'content:', !!content);
 
@@ -213,11 +218,26 @@ const FilePreview: React.FC<FilePreviewProps> = ({ file, onClose }) => {
 
     if (pdfUrl) {
       return (
-        <div className="preview-pdf">
-          <div className="pdf-info">
-            <p>PDF文件预览</p>
-          </div>
-          <div className="pdf-container">
+        <div className="preview-pdf" style={{
+          display: 'flex',
+          flexDirection: 'column',
+          ...(isMaximized ? {
+            height: 'calc(100vh - 64px)',  // 减去header高度，预留更小空间
+            minHeight: 'calc(100vh - 64px)'
+          } : {
+            height: '600px'  // 固定高度，确保非全屏状态清晰可见
+          })
+        }}>
+          <div className="pdf-container" style={{
+            flex: 1,  // 关键：让容器完全占满父级空间
+            width: '100%',
+            border: isMaximized ? 'none' : '1px solid #e0e0e0',
+            borderRadius: isMaximized ? '0' : '8px',
+            backgroundColor: 'white',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column'
+          }}>
             {loading && (
               <div className="preview-loading">
                 <div className="loading-spinner"></div>
@@ -228,11 +248,11 @@ const FilePreview: React.FC<FilePreviewProps> = ({ file, onClose }) => {
               src={pdfUrl}
               style={{
                 width: '100%',
-                height: '70vh',
-                border: '1px solid #e0e0e0',
-                borderRadius: '8px',
+                height: '100%',
+                border: 'none',
                 backgroundColor: 'white',
-                display: loading ? 'none' : 'block'
+                display: loading ? 'none' : 'block',
+                flex: 1  // 确保iframe占满flex容器
               }}
               title="PDF预览"
               onLoad={() => {
@@ -283,7 +303,7 @@ const FilePreview: React.FC<FilePreviewProps> = ({ file, onClose }) => {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="file-preview-modal" onClick={(e) => e.stopPropagation()}>
+      <div className={`file-preview-modal ${isMaximized ? 'maximized' : ''}`} onClick={(e) => e.stopPropagation()}>
         <div className="preview-header">
           <div className="preview-info">
             <h3 className="preview-title">{file.name}</h3>
@@ -300,6 +320,16 @@ const FilePreview: React.FC<FilePreviewProps> = ({ file, onClose }) => {
               >
                 {copied ? <Check size={14} /> : <Copy size={14} />}
                 {copied ? '已复制' : '复制'}
+              </button>
+            )}
+            {pdfUrl && (
+              <button
+                className="btn btn-sm btn-secondary"
+                onClick={toggleMaximize}
+                title={isMaximized ? "退出全屏" : "全屏预览"}
+              >
+                {isMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                {isMaximized ? '退出全屏' : '全屏'}
               </button>
             )}
             <button
