@@ -103,6 +103,7 @@ namespace BwtFS::Node{
                     throw std::runtime_error("No free block");
                 }
                 info.bitmap = t;
+                LOG_DEBUG << "Writing block bitmap: " << info.bitmap;
                 m_data_queue.enqueue(info);
                 return t;
             }
@@ -116,24 +117,38 @@ namespace BwtFS::Node{
                 
             }
             void set_write_finished(bool finished){
+                std::unique_lock<std::mutex> lock(m_write_finish_mutex);
                 m_write_finished = finished;
             }
+            bool get_write_finished(){
+                std::unique_lock<std::mutex> lock(m_write_finish_mutex);
+                return m_write_finished;
+            }
+            bool has_all_written(){
+                return all_written;
+            }
             void write_fs(){
-                while(!m_data_queue.empty() || !m_write_finished){
+                while(!m_data_queue.empty() || !get_write_finished()){
                     if (m_data_queue.empty()){
                         continue;
                     }
                     BinaryNodeInfo data;
                     m_data_queue.dequeue(data);
                     m_fs->write(data.bitmap, data.data);
+                    LOG_DEBUG << "Write content: " << data.data.to_base64_string();
                     m_size_queue.enqueue(data.bitmap);
+                    Binary d = m_fs->read(data.bitmap); // 读取以确保写入成功
+                    LOG_DEBUG << "Read " << data.bitmap <<" back content: " << d.to_base64_string();
                 }
+                all_written = true;
             }
         private:
             std::shared_ptr<BwtFS::System::FileSystem> m_fs;
             safe_queue<BinaryNodeInfo> m_data_queue;
             safe_queue<size_t> m_size_queue;
+            std::mutex m_write_finish_mutex;
             bool m_write_finished = false;
+            bool all_written = false;
     };
 
     class TreeDataReader{
@@ -192,25 +207,30 @@ namespace BwtFS::Node{
             // }
             Binary read(size_t index, size_t size){
                 Binary binary_data;
-                int visit_index = index / (BwtFS::BLOCK_SIZE - sizeof(uint8_t));
+                size_t visit_index = index / (BwtFS::BLOCK_SIZE - sizeof(uint8_t));
                 if (visit_index >= m_visit_nodes->size()){
                     LOG_WARNING << "Get Tree Data: Out of range: " << visit_index 
                               << ", size: " << m_visit_nodes->size();
                     // throw std::runtime_error("Get Tree Data: Out of range");
                     return binary_data; // 返回空的Binary
                 }
-                int node_data_start = index - visit_index * (BwtFS::BLOCK_SIZE - sizeof(uint8_t));
+                size_t node_data_start = index - visit_index * (BwtFS::BLOCK_SIZE - sizeof(uint8_t));
                 size_t size_ = size;
                 while(binary_data.size() < size){
-                    // LOG_DEBUG << "Total size: " << binary_data.size() 
-                    //           << ", size: " << size 
-                    //           << ", visit_index: " << visit_index;
+                    LOG_DEBUG << "Total size: " << binary_data.size() 
+                              << ", size: " << size 
+                              << ", visit_index: " << visit_index;
                     auto node = m_visit_nodes->at(visit_index);
+                    LOG_DEBUG << "Visiting node bitmap: " << node.bitmap 
+                              << ", start: " << node.start 
+                              << ", length: " << node.length 
+                              << ", seed: " << node.seed 
+                              << ", level: " << int(node.level);
                     Binary data = m_fs->read(node.bitmap);
                     
                     white_node<RCAEncryptor> wnode(
                         data, node.level, node.seed, node.start, node.length);
-                    int read_size;
+                    size_t read_size;
                     if (wnode.data().size() - node_data_start < size_){
                         read_size = wnode.data().size() - node_data_start;
                         binary_data.append(wnode.data().read(node_data_start, read_size)); 
@@ -261,16 +281,17 @@ namespace BwtFS::Node{
             * 初始化访问节点
             */
             void init(bool is_delete = false){
-                // LOG_DEBUG << "Init visit nodes";
+                LOG_DEBUG << "Init visit nodes";
                 while(!m_entry_queue.empty()){
                     auto entry = m_entry_queue.front();
                     m_entry_queue.pop();
-                    // LOG_DEBUG << "Entry bitmap: " << entry.get_bitmap() 
-                            //   << ", level: " << (int)entry.get_level() 
-                            //   << ", seed: " << entry.get_seed() 
-                            //   << ", start: " << entry.get_start() 
-                            //   << ", length: " << entry.get_length();
+                    LOG_DEBUG << "Entry bitmap: " << entry.get_bitmap() 
+                              << ", level: " << (int)entry.get_level() 
+                              << ", seed: " << entry.get_seed() 
+                              << ", start: " << entry.get_start() 
+                              << ", length: " << entry.get_length();
                     Binary bd = m_fs->read(entry.get_bitmap());
+                    LOG_DEBUG << "Read content: " << bd.to_base64_string();
                     // LOG_DEBUG << "Read bitmap: " << entry.get_bitmap() 
                     //           << ", size: " << bd.size();
                     if(is_delete){
@@ -282,9 +303,14 @@ namespace BwtFS::Node{
                     std::vector<BwtFS::Node::entry> entries;
                     for (int i = 0; i < node.get_size_of_entry(); i++){
                         auto e = node.get_entry(i);
+                        LOG_DEBUG << "Black node entry bitmap: " << e.get_bitmap() 
+                                  << ", level: " << (int)e.get_level() 
+                                  << ", seed: " << e.get_seed() 
+                                  << ", start: " << e.get_start() 
+                                  << ", length: " << e.get_length();
                         entries.push_back(e);
                     }
-                    for (int i = 0; i < entries.size(); i++){
+                    for (size_t i = 0; i < entries.size(); i++){
                         auto e = entries[i];
                         VisitNode node;
                         node.bitmap = e.get_bitmap();
@@ -399,6 +425,7 @@ namespace BwtFS::Node{
             */
             Binary read(size_t index, size_t size){
                 // 读取数据的逻辑
+                LOG_DEBUG << "Read data from bw_tree, index: " << index << ", size: " << size;
                 return m_tree_data_reader->read(index, size);
             }
 
@@ -433,8 +460,8 @@ namespace BwtFS::Node{
             std::string generate_tree(){
                 std::queue<black_node<RCAEncryptor>*> bkn_queue;
                 black_node<RCAEncryptor>* bkn = new black_node<RCAEncryptor>(0);
-                constexpr int entry_num = BwtFS::BLOCK_SIZE / SIZE_OF_ENTRY;
-                constexpr int max_level = 2;
+                constexpr size_t entry_num = BwtFS::BLOCK_SIZE / SIZE_OF_ENTRY;
+                constexpr int max_level = 1;
                 auto seeds = BwtFS::Util::RandNumbers<uint16_t>(entry_num, std::hash<std::queue<black_node<RCAEncryptor>*>*>{}(&bkn_queue), 1, 1 << 15);
                 auto levels = BwtFS::Util::RandNumbers<uint8_t>(entry_num, std::hash<std::vector<uint16_t>*>{}(&seeds), 1, 1 << max_level);
                 uint16_t seed;
@@ -548,14 +575,17 @@ namespace BwtFS::Node{
                 // LOG_INFO << "Bitmap of token: " << bitmap;
                 
                 this->m_transaction_writer.set_write_finished(true);
+                while (!this->m_transaction_writer.has_all_written()){
+                    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                }
                 m_token = generate_token(bitmap, bkn->get_start(), bkn->get_length(), seed, level);
                 is_generate = true;
-                // LOG_INFO << "Token generated: " << m_token;
-                // LOG_INFO << "bitmap: " << bitmap 
-                //          << ", start: " << bkn->get_start() 
-                //          << ", length: " << bkn->get_length() 
-                //          << ", seed: " << seed 
-                //          << ", level: " << (int)level;
+                LOG_INFO << "Token generated: " << m_token;
+                LOG_INFO << "bitmap: " << bitmap 
+                         << ", start: " << bkn->get_start() 
+                         << ", length: " << bkn->get_length() 
+                         << ", seed: " << seed 
+                         << ", level: " << (int)level;
                 delete bkn;
                 return m_token;
             }

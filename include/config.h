@@ -10,7 +10,7 @@ namespace BwtFS{
     const size_t GB = 1024 * MB;       // 1GB
     const size_t TB = 1024 * GB;       // 1TB
     const size_t UNIT = KB;            // 块大小的单位
-    const unsigned BLOCK_SIZE = 4*KB;  // 块大小
+    const size_t BLOCK_SIZE = 4*KB;  // 块大小
     typedef unsigned node_size;        // 节点内部大小：4KB，采用32位整型以提高性能
 
 

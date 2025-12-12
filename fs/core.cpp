@@ -305,7 +305,7 @@ int BwtFSMounter::open(const std::string& path, int flags /* = O_RDONLY */){
     // 检查是否需要写入（如果是写模式，需要特殊处理）
     bool need_write = (flags & (O_WRONLY | O_RDWR)) != 0;
 
-    if (file_token == "memory") {
+    if (file_token == "memory" || file_token == "finalizing") {
         // 文件还在memory_fs中，从memory_fs打开
         LOG_DEBUG << "[open] opening file from memory_fs: " << normalized_path << " write=" << need_write;
 
@@ -413,6 +413,8 @@ int BwtFSMounter::open(const std::string& path, int flags /* = O_RDONLY */){
                 // 删除已分配的fd映射（如果fd已分配）
                 if (fd >= 0) {
                     fd_map_.erase(fd);
+                    fd_tree_map_.erase(fd);
+                    path_fd_map_.erase(normalized_path);
                 }
                 return -EIO;
             }
@@ -527,8 +529,9 @@ int BwtFSMounter::read(int fd, char* buf, size_t size){
             return -EBADF;
         }
 
-        BwtFS::Node::bw_tree* tree = tree_it->second;
+        
         try {
+            BwtFS::Node::bw_tree* tree = tree_it->second;
             Binary data = tree->read(0, size); // 从偏移0开始读取
 
             // 检查读取结果 - 防止无限循环
@@ -988,11 +991,17 @@ int BwtFSMounter::write(int fd, const char* buf, size_t size, off_t offset) {
             }
 
             // 10. 先创建新文件（安全策略：先创建再删除）
-            LOG_INFO << "[write] creating new BwtFS file: " << file_path;
             BwtFS::Node::bw_tree new_tree;
-            new_tree.write(const_cast<char*>(temp_file_it->second.data.data()), final_size);
-            new_tree.flush();
-            new_tree.join();
+           try{ 
+                LOG_INFO << "[write] creating new BwtFS file: " << file_path;
+                new_tree.write(const_cast<char*>(temp_file_it->second.data.data()), final_size);
+                new_tree.flush();
+                new_tree.join();
+            } catch (const std::exception& e) {
+                LOG_ERROR << "[write] failed to create new BwtFS file during COW: " << e.what();
+                // throw;  // 重新抛出异常以进入catch块进行清理
+                return 0;
+            }
 
             std::string new_token = new_tree.get_token();
 
@@ -1234,37 +1243,37 @@ int BwtFSMounter::close(int fd){
             tree.write(const_cast<char*>(data.data()), data.size());
 
             // 刷新缓冲区并等待树构建完成
-            LOG_INFO << "[close] flushing tree for: " << file_path;
+            // LOG_INFO << "[close] flushing tree for: " << file_path;
             tree.flush();
 
-            LOG_INFO << "[close] joining tree for: " << file_path;
+            // LOG_INFO << "[close] joining tree for: " << file_path;
             tree.join();
 
             // 如果这是系统临时文件，在删除前检查是否有对应的主文件需要数据同步
-            std::string basename = file_path.substr(file_path.find_last_of('/') + 1);
-            if (basename.find("._") == 0) {
-                // 提取主文件名（去掉._前缀）
-                std::string main_filename = basename.substr(2);
-                std::string main_file_path = file_path.substr(0, file_path.find_last_of('/') + 1) + main_filename;
+            // std::string basename = file_path.substr(file_path.find_last_of('/') + 1);
+            // if (basename.find("._") == 0) {
+            //     // 提取主文件名（去掉._前缀）
+            //     std::string main_filename = basename.substr(2);
+            //     std::string main_file_path = file_path.substr(0, file_path.find_last_of('/') + 1) + main_filename;
 
-                // 检查主文件是否存在且为memory文件
-                auto main_token = file_manager_.getFileToken(main_file_path);
-                if (main_token == "memory") {
-                    LOG_INFO << "[close] detected system temp file completion, syncing data to main file: " << main_file_path;
+            //     // 检查主文件是否存在且为memory文件
+            //     auto main_token = file_manager_.getFileToken(main_file_path);
+            //     if (main_token == "memory") {
+            //         LOG_INFO << "[close] detected system temp file completion, syncing data to main file: " << main_file_path;
 
-                    // 将数据复制到主文件
-                    auto main_memory_it = memory_fs_.files_.find(main_file_path);
-                    if (main_memory_it != memory_fs_.files_.end()) {
-                        main_memory_it->second.data = data;  // 复制数据
+            //         // 将数据复制到主文件
+            //         auto main_memory_it = memory_fs_.files_.find(main_file_path);
+            //         if (main_memory_it != memory_fs_.files_.end()) {
+            //             main_memory_it->second.data = data;  // 复制数据
 
-                        // 更新主文件大小
-                        file_manager_.updateFileSize(main_file_path, data.size());
-                        LOG_INFO << "[close] synced " << data.size() << " bytes to main file: " << main_file_path;
-                    } else {
-                        LOG_WARNING << "[close] main file not found in memory_fs: " << main_file_path;
-                    }
-                }
-            }
+            //             // 更新主文件大小
+            //             file_manager_.updateFileSize(main_file_path, data.size());
+            //             LOG_INFO << "[close] synced " << data.size() << " bytes to main file: " << main_file_path;
+            //         } else {
+            //             LOG_WARNING << "[close] main file not found in memory_fs: " << main_file_path;
+            //         }
+            //     }
+            // }
 
             // 获取访问令牌
             std::string new_token = tree.get_token();
