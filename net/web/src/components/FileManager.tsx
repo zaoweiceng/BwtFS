@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Upload, FolderPlus, RefreshCw, Download, MoreVertical, Eye, Search, X } from 'lucide-react';
+import { Upload, FolderPlus, RefreshCw, Download, MoreVertical, Eye, Search, X, Move } from 'lucide-react';
 import { fileApi } from '../services/api';
 import { fileManager } from '../services/fileManager';
 import { FileInfo, UploadProgress } from '../types';
 import { showNotification } from './Notification';
 import FilePreview from './FilePreview';
+
 
 const FileManager: React.FC = () => {
   const [files, setFiles] = useState<FileInfo[]>([]);
@@ -14,6 +15,7 @@ const FileManager: React.FC = () => {
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [showCreateFolderDialog, setShowCreateFolderDialog] = useState(false);
   const [showRenameDialog, setShowRenameDialog] = useState(false);
+  const [showMoveDialog, setShowMoveDialog] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [selectedFile, setSelectedFile] = useState<FileInfo | null>(null);
   const [newFolderName, setNewFolderName] = useState('');
@@ -23,6 +25,9 @@ const FileManager: React.FC = () => {
   const [previewFile, setPreviewFile] = useState<FileInfo | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+  const [availableFolders, setAvailableFolders] = useState<string[]>([]);
+  const [selectedTargetPath, setSelectedTargetPath] = useState<string>(''); // Move dialog target
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set()); // Track expanded folders in tree
 
   useEffect(() => {
     loadFiles();
@@ -185,6 +190,143 @@ const FileManager: React.FC = () => {
     } else {
       showNotification('重命名失败', 'error');
     }
+  };
+
+  const handleMove = (file: FileInfo) => {
+    setSelectedFile(file);
+    // 获取所有文件夹，排除当前文件的路径
+    const allFolders = fileManager.getAllFolders();
+    const filteredFolders = allFolders.filter(folder => {
+      // 排除当前文件/文件夹的路径
+      const currentPath = file.path || '';
+      // 排除当前文件/文件夹本身和子路径（防止循环移动）
+      return !folder.startsWith(currentPath + '/') && folder !== currentPath;
+    });
+    setAvailableFolders(filteredFolders);
+    setSelectedTargetPath(currentPath); // 默认选择当前路径
+    setShowMoveDialog(true);
+  };
+
+  const handleMoveConfirm = () => {
+    if (!selectedFile) {
+      showNotification('请选择要移动的文件', 'warning');
+      return;
+    }
+
+    const sourcePath = selectedFile.path || '';
+    const targetPath = selectedTargetPath;
+
+    // 防止移动到自己的父目录（这会导致无限递归）
+    if (targetPath.startsWith(sourcePath + '/')) {
+      showNotification('不能移动到子目录', 'error');
+      return;
+    }
+
+    // 如果目标路径和源路径相同，无需移动
+    if (targetPath === currentPath) {
+      showNotification('无需移动，目标路径与当前位置相同', 'warning');
+      return;
+    }
+
+    const success = fileManager.moveItem(sourcePath, targetPath);
+
+    if (success) {
+      loadFiles();
+      setShowMoveDialog(false);
+      setSelectedFile(null);
+      setSelectedTargetPath('');
+      setAvailableFolders([]);
+      showNotification(`成功移动 ${selectedFile.name} 到 ${targetPath || '根目录'}`, 'success');
+    } else {
+      showNotification('移动失败', 'error');
+    }
+  };
+
+  // Tree folder toggle functions
+  const toggleFolderExpand = (folderPath: string) => {
+    const newExpanded = new Set(expandedFolders);
+    if (newExpanded.has(folderPath)) {
+      newExpanded.delete(folderPath);
+    } else {
+      newExpanded.add(folderPath);
+    }
+    setExpandedFolders(newExpanded);
+  };
+
+  // Simple tree structure for folder display
+  const renderFolderTree = () => {
+    if (availableFolders.length === 0) {
+      return <div className="no-folders"><span>没有可用的目标文件夹</span></div>;
+    }
+
+    // Group folders by parent path
+    const folderMap = new Map<string, string[]>();
+    const rootFolders: string[] = [];
+
+    availableFolders.forEach(folder => {
+      const parts = folder.split('/');
+      if (parts.length === 1) {
+        rootFolders.push(folder);
+      } else {
+        const parentPath = parts.slice(0, -1).join('/');
+        if (!folderMap.has(parentPath)) {
+          folderMap.set(parentPath, []);
+        }
+        folderMap.get(parentPath)!.push(folder);
+      }
+    });
+
+    // Recursive render function
+    const renderFolder = (folderPath: string, level: number = 0) => {
+      const folderName = folderPath.split('/').pop() || folderPath;
+      const isExpanded = expandedFolders.has(folderPath);
+      const isSelected = selectedTargetPath === folderPath;
+      const hasChildren = folderMap.has(folderPath);
+
+      return (
+        <div key={folderPath} style={{ marginLeft: `${level * 20}px` }}>
+          <div
+            className={`folder-option ${isSelected ? 'selected' : ''}`}
+            onClick={() => setSelectedTargetPath(folderPath)}
+          >
+            <span
+              className="folder-expand-icon"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (hasChildren) {
+                  toggleFolderExpand(folderPath);
+                }
+              }}
+              style={{
+                cursor: hasChildren ? 'pointer' : 'default',
+                width: '16px',
+                display: 'inline-block',
+                color: hasChildren ? '#5f6368' : 'transparent'
+              }}
+            >
+              {hasChildren ? (isExpanded ? '▼' : '▶') : '○'}
+            </span>
+            <span>📁</span>
+            <span>{folderName}</span>
+          </div>
+          {hasChildren && isExpanded && folderMap.get(folderPath)!.map(child => renderFolder(child, level + 1))}
+        </div>
+      );
+    };
+
+    return (
+      <div>
+        <div
+          className={`folder-option ${selectedTargetPath === '' ? 'selected' : ''}`}
+          onClick={() => setSelectedTargetPath('')}
+        >
+          <span className="folder-expand-icon" style={{ width: '16px', display: 'inline-block' }}>○</span>
+          <span>📁</span>
+          <span>根目录</span>
+        </div>
+        {rootFolders.map(folder => renderFolder(folder))}
+      </div>
+    );
   };
 
   const formatFileSize = (bytes: number) => {
@@ -411,6 +553,16 @@ const FileManager: React.FC = () => {
                   重命名
                 </button>
                 <button
+                  className="btn btn-sm btn-warning"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleMove(file);
+                  }}
+                  title="移动"
+                >
+                  移动
+                </button>
+                <button
                   className="btn btn-sm btn-danger"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -548,6 +700,42 @@ const FileManager: React.FC = () => {
                 取消
               </button>
               <button className="btn btn-primary" onClick={handleRename}>
+                确定
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 移动对话框 */}
+      {showMoveDialog && selectedFile && (
+        <div className="modal-overlay" onClick={() => setShowMoveDialog(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>移动到</h3>
+              <button className="modal-close" onClick={() => setShowMoveDialog(false)}>
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label>目标文件夹</label>
+                <div className="folder-tree">
+                  {renderFolderTree()}
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowMoveDialog(false)}
+              >
+                取消
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={handleMoveConfirm}
+              >
                 确定
               </button>
             </div>

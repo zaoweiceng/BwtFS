@@ -310,6 +310,28 @@ export class FileManager {
     }
   }
 
+  // 获取所有文件夹列表（用于移动操作）
+  getAllFolders(): string[] {
+    const folders: string[] = [];
+
+    // 递归获取所有文件夹
+    const collectFolders = (current: FileStructure, currentPath: string = ''): void => {
+      for (const [name, node] of Object.entries(current)) {
+        if (node.is_dir) {
+          const fullPath = currentPath ? `${currentPath}/${name}` : name;
+          folders.push(fullPath);
+
+          if (node.children) {
+            collectFolders(node.children, fullPath);
+          }
+        }
+      }
+    };
+
+    collectFolders(this.fileStructure);
+    return folders.sort((a, b) => a.localeCompare(b));
+  }
+
   // 递归搜索文件和文件夹
   searchFiles(query: string, searchPath: string = ''): FileInfo[] {
     const results: FileInfo[] = [];

@@ -1,136 +1,198 @@
-# BwtFS Net - HTTP 服务器接口
+# BwtFS 网络服务
 
-BwtFS Net 是 BwtFS 文件系统的 HTTP 服务器子项目，提供了基于 Web 的文件存储和访问接口。
+BwtFS Net 是 BwtFS 隐私保护文件系统的网络化扩展，提供现代化的 Web API 接口和用户界面。
 
-## 功能特性
+## 🌟 主要特性
 
-- **文件上传**：支持大文件分块上传，带有进度显示和断点续传功能
-- **文件下载**：基于 Token 的安全文件下载
-- **文件删除**：安全的文件删除操作
-- **Web 界面**：现代化的响应式 Web 管理界面
-- **RESTful API**：简洁的 HTTP API 接口
+### 🖥️ Web 前端界面
+- **现代化设计**：参考 Google Drive 的用户界面风格
+- **响应式布局**：完美支持桌面和移动设备
+- **实时通知**：操作结果通过右上角通知展示
+- **文件预览**：支持图片、PDF、文本文件在线预览
+- **拖拽上传**：直观的文件拖拽上传体验
 
-## 快速开始
+### 📁 文件管理
+- **分块上传**：大文件自动分块（1MB），确保传输稳定性
+- **目录导航**：层级文件夹结构，支持面包屑导航
+- **搜索功能**：递归搜索文件和文件夹，实时显示结果
+- **批量操作**：重命名、移动、删除等批量文件操作
+- **树状选择**：移动操作支持树状展开的文件夹选择
 
-### 编译项目
+### 🔐 隐私保护
+- **令牌访问**：所有文件操作基于生成的访问令牌
+- **加密传输**：文件通过 RCA 加密后存储在 BwTree 结构中
+- **反取证**：黑白节点混淆存储，防止访问模式分析
+- **安全删除**：文件删除后完全不可恢复
 
+### 🌐 RESTful API
+- **HTTP 服务器**：基于 Boost.Beat 的高性能异步服务
+- **CORS 支持**：完整的跨域资源共享支持
+- **错误处理**：完善的错误响应机制
+- **分块传输**：支持大文件分块上传和流式下载
+
+## 🚀 快速开始
+
+### 编译要求
+- C++17 或更高版本
+- CMake 3.10 或更高版本
+- Boost 库（Beast, Asio, Json, Filesystem）
+- Node.js 16.0+（前端开发）
+
+### 编译后端服务
 ```bash
+# 创建构建目录
 mkdir build && cd build
+
+# 配置项目
 cmake ..
-make
+
+# 编译项目
+cmake --build .
 ```
 
-可执行文件编译完成之后在`build/bin`目录下
-
-### 运行服务器
-
+### 启动服务
 ```bash
-# 使用默认配置文件
+# 从构建目录运行
 ./bwtfs_net
 
-# 启动服务
-./bwtfs_net
-
-# 查看帮助信息
-./bwtfs_net --help
+# 默认监听端口 9999
+# 端口可通过配置文件进行修改，具体请参考配置文档
 ```
 
-启动服务前需要配置文件系统路径，具体参考配置说明文档
+### 启动前端
+```bash
+cd web
 
-### 访问服务
+# 安装依赖
+pnpm install
 
-启动服务后，在浏览器中访问：
+# 启动开发服务器
+pnpm start
+
+# 生产环境构建
+pnpm build
 ```
-http://localhost:9999
+
+### 访问应用
+- **后端 API**：http://127.0.0.1:9999
+- **Web 界面**：http://localhost:3001
+
+## 📖 API 接口
+
+### 系统信息
+- **GET** `/system_size` - 获取文件系统信息
+- **GET** `/free_size` - 获取可用空间
+
+### 文件操作
+- **POST** `/upload` - 上传文件（支持分块）
+- **GET** `/{token}` - 下载文件
+- **DELETE** `/{token}` - 删除文件
+
+### 上传接口详情
+
+**请求头**：
+```
+X-File-Id: 唯一文件标识符
+X-Chunk-Index: 当前块索引（从0开始）
+X-Total-Chunks: 总块数
+X-File-Size: 文件总大小
+X-File-Name: 文件名称
 ```
 
-## API 接口
-
-### 1. 文件上传
-
-**接口**：`POST /upload`
-
-**说明**：上传文件到 BwtFS，支持大文件分块上传
-
-**请求格式**：
-- Content-Type: `multipart/form-data`
-- 支持文件分块上传（每块 1MB）
-
-**响应**：
+**成功响应**：
 ```json
 {
     "success": true,
-    "token": "bwtfs_file_token_here",
+    "token": "generated_access_token",
     "message": "Upload completed"
 }
 ```
 
-### 2. 文件下载
+## 📁 项目结构
 
-**接口**：`GET /{token}`
-
-**说明**：使用 Token 下载文件
-
-**响应**：
-- 成功：文件二进制流
-- 失败：404 Not Found
-
-### 3. 文件删除
-
-**接口**：`DELETE /delete/{token}`
-
-**说明**：删除指定 Token 对应的文件
-
-**响应**：
-```json
-{
-    "success": true,
-    "message": "File deleted successfully"
-}
+```
+net/
+├── main.cpp              # 程序入口点
+├── server.hpp            # HTTP 服务器实现
+├── CMakeLists.txt        # CMake 构建配置
+└── web/                  # React 前端项目
+    ├── public/          # 静态资源
+    │   ├── index.html     # HTML 模板
+    │   └── favicon.ico    # 应用图标
+    ├── src/             # 源代码
+    │   ├── components/   # React 组件
+    │   │   ├── FileManager.tsx
+    │   │   ├── Header.tsx
+    │   │   ├── Notification.tsx
+    │   │   └── FilePreview.tsx
+    │   ├── services/     # 服务层
+    │   │   ├── api.ts
+    │   │   └── fileManager.ts
+    │   └── types/         # 类型定义
+    ├── package.json     # 依赖配置
+    └── README.md        # 前端详细文档
 ```
 
-### 4. Web 界面
+## 🛠️ 技术架构
 
-**接口**：`GET /`
+### 后端技术栈
+- **C++17**：现代 C++ 标准
+- **Boost.Beast**：HTTP/1.1 服务器框架
+- **Boost.Asio**：异步 I/O 库
+- **Boost.JSON**：JSON 处理
+- **BwtFS Core**：核心文件系统库
 
-**说明**：访问 Web 管理界面，提供文件上传、下载和删除功能
+### 前端技术栈
+- **React 19.2.1**：现代化前端框架
+- **TypeScript 4.9.5**：类型安全的 JavaScript
+- **Element Plus 2.12.0**：UI 组件库
+- **Axios 1.13.2**：HTTP 客户端
+- **React-markdown 10.1.0**：Markdown 渲染
 
-## 配置选项
+## 🔧 配置选项
 
-服务器配置通过 `bwtfs.ini` 文件的 `[server]` 部分设置：
-
+### 服务器配置
 ```ini
 [server]
-# 服务器监听地址
 address = 127.0.0.1
-# 服务器监听端口
 port = 9999
-# 最大请求体大小（字节）
 max_body_size = 104857600
 ```
 
-## 技术架构
+### 前端配置
+```env
+REACT_APP_API_BASE_URL=http://127.0.0.1:9999
+```
 
-- **网络库**：Boost.Beast (HTTP 服务器)
-- **异步 I/O**：Boost.Asio
-- **JSON 处理**：Boost.JSON
-- **文件系统**：BwtFS 核心库
+## 📊 核心工作流程
 
+### 文件上传流程
+1. 用户选择文件或拖拽到上传区域
+2. 文件被分块为 1MB 的小块
+3. 通过 HTTP API 上传到后端
+4. 文件存储在 BwtFS 中并生成访问令牌
+5. 本地文件结构更新到 localStorage
 
-## 使用示例
+### 文件预览支持
+- **图片格式**：jpg, jpeg, png, gif, bmp, webp, svg, ico
+- **文档格式**：pdf
+- **文本格式**：txt, md, markdown, json, xml, csv, log, ini, config, yml, yaml
+- **代码格式**：js, ts, html, css, sql, py, java, cpp, c, h, hpp, sh, bat, ps1
 
-对于大文件，需要分块上传。建议使用 JavaScript 客户端或编写脚本进行分块上传。
+### 隐私保护机制
+- **令牌认证**：所有文件操作需要有效令牌
+- **数据加密**：RCA 加密算法保护数据安全
+- **反取证存储**：黑白节点混淆防止访问分析
+- **安全删除**：数据删除后完全不可恢复
 
-### 使用 JavaScript 上传文件
+## 🛠️ 使用指南
+
+### JavaScript 客户端上传示例
 
 ```javascript
-async function uploadFile(file) {
-    if (!file) {
-        console.error("Please select a file to upload.");
-        return;
-    }
-
-    const CHUNK_SIZE = 1024 * 1024; // 1MB chunks
+// 大文件分块上传
+async function uploadLargeFile(file) {
+    const CHUNK_SIZE = 1024 * 1024; // 1MB
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
     const fileId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
 
@@ -140,41 +202,99 @@ async function uploadFile(file) {
             const end = Math.min(start + CHUNK_SIZE, file.size);
             const chunk = file.slice(start, end);
 
-            const response = await fetch('http://localhost:9999/upload', {
+            const response = await fetch('http://127.0.0.1:9999/upload', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/octet-stream',
                     'X-File-Id': fileId,
-                    'Connection': 'keep-alive',
                     'X-Chunk-Index': chunkIndex,
                     'X-Total-Chunks': totalChunks,
                     'X-File-Size': file.size,
-                    'X-File-Type': file.type
+                    'X-File-Name': file.name
                 },
                 body: chunk
             });
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            // Last chunk returns the token
+            // 最后一块返回访问令牌
             if (chunkIndex + 1 === totalChunks) {
                 const data = await response.json();
-                console.log('Upload successful. Token:', data.token);
+                console.log('上传成功，访问令牌:', data.token);
                 return data.token;
             }
         }
     } catch (error) {
-        console.error('Error uploading file:', error);
+        console.error('上传失败:', error);
     }
 }
-
-// 使用示例
-const fileInput = document.querySelector('input[type="file"]');
-fileInput.addEventListener('change', (e) => {
-    if (e.target.files[0]) {
-        uploadFile(e.target.files[0]);
-    }
-});
 ```
+
+### Python 客户端示例
+
+```python
+import requests
+
+# 上传文件
+def upload_file(file_path):
+    url = 'http://127.0.0.1:9999/upload'
+
+    with open(file_path, 'rb') as f:
+        files = {'file': f}
+        data = {
+            'X-File-Id': 'unique_file_id',
+            'X-Chunk-Index': 0,
+            'X-Total-Chunks': 1,
+            'X-File-Size': os.path.getsize(file_path)
+        }
+
+        response = requests.post(url, files=files, headers=data)
+
+        if response.status_code == 200:
+            result = response.json()
+            print(f"上传成功，令牌: {result['token']}")
+            return result['token']
+
+    return None
+
+# 下载文件
+def download_file(token, save_path):
+    url = f'http://127.0.0.1:9999/{token}'
+
+    response = requests.get(url)
+
+    if response.status_code == 200:
+        with open(save_path, 'wb') as f:
+            f.write(response.content)
+        print(f"下载成功: {save_path}")
+        return True
+
+    return False
+```
+
+## 🔧 开发指南
+
+### 前端开发
+```bash
+cd web
+
+# 安装依赖
+pnpm install
+
+# 启动开发服务器（带调试信息）
+DISABLE_ESLINT_PLUGIN=true pnpm start
+
+# 生产构建
+pnpm build
+```
+
+### 添加新功能
+1. 在 `src/components/` 中创建新组件
+2. 在 `src/services/api.ts` 中添加 API 调用
+3. 在 `src/types/` 中定义类型
+4. 更新样式文件
+
+
+## 🔗 相关链接
+
+- [Web 前端详细文档](web/README.md)
+- [BwtFS 主项目](../README.md)
+- [技术文档](../docs/)

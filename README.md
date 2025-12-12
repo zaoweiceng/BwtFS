@@ -19,28 +19,52 @@
 ### 🌐 Multiple Access Methods
 - **FUSE Mount**: Cross-platform filesystem mounting (Windows/macOS/Linux)
 - **Command Line Tools**: Interactive and batch operation modes
-- **HTTP Service**: RESTful API + Web management interface
+- **HTTP Service**: RESTful API + Modern Web management interface
 
 ## 🏗️ Technical Architecture
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                 User Interface Layer                  │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐ │
-│  │ FUSE Mount  │  │ CMD Tools   │  │ HTTP Service│ │
-│  └─────────────┘  └─────────────┘  └─────────────┘ │
+│                 User Interface Layer                │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │
+│  │ FUSE Mount  │  │ CMD Tools   │  │ HTTP Service│  │
+│  └─────────────┘  └─────────────┘  └─────────────┘  │
 ├─────────────────────────────────────────────────────┤
-│                  BwtFS Core Engine                     │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐ │
-│  │ B&W Tree    │  │ RCA Crypto  │  │ Token Access│ │
-│  │ Storage     │  │             │  │ Control     │ │
-│  └─────────────┘  └─────────────┘  └─────────────┘ │
+│                  BwtFS Core Engine                  │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │
+│  │ B&W Tree    │  │ RCA Crypto  │  │ Token Access│  │
+│  │ Storage     │  │             │  │ Control     │  │
+│  └─────────────┘  └─────────────┘  └─────────────┘  │
 ├─────────────────────────────────────────────────────┤
-│                Storage Management Layer                │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐ │
-│  │ Bitmap      │  │ Wear Level  │  │ Transaction │ │
-│  │ Management  │  │ Balancing   │  │ Mechanism   │ │
-│  └─────────────┘  └─────────────┘  └─────────────┘ │
+│                Storage Management Layer             │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │
+│  │ Bitmap      │  │ Wear Level  │  │ Transaction │  │
+│  │ Management  │  │ Balancing   │  │ Mechanism   │  │
+│  └─────────────┘  └─────────────┘  └─────────────┘  │
+└─────────────────────────────────────────────────────┘
+```
+
+### 🌐 Web Interface Architecture
+
+```
+┌─────────────────────────────────────────────────────┐
+│                 Web Frontend Layer                  │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │
+│  │ React 19.2  │  │ TypeScript  │  │ Element Plus│  │
+│  │ Components  │  │ Services    │  │ UI Library  │  │
+│  └─────────────┘  └─────────────┘  └─────────────┘  │
+├─────────────────────────────────────────────────────┤
+│                 HTTP API Layer                      │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │
+│  │ RESTful API │  │ Chunked     │  │ CORS        │  │
+│  │ Endpoints   │  │ Upload      │  │ Support     │  │
+│  └─────────────┘  └─────────────┘  └─────────────┘  │
+├─────────────────────────────────────────────────────┤
+│                Client Storage Layer                 │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │
+│  │ LocalStorage│  │ File        │  │ Search &    │  │
+│  │ Persistence │  │ Structure   │  │ Navigation  │  │
+│  └─────────────┘  └─────────────┘  └─────────────┘  │ 
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -57,6 +81,11 @@
 - Windows: WinFSP runtime
 - macOS: macFUSE 2.9+
 - Linux: libfuse3
+
+**Web Interface (Optional):**
+- Node.js 16.0+ (for development)
+- pnpm 8.0+ (package manager)
+- Modern browser (Chrome 90+, Firefox 88+, Safari 14+)
 
 ### Build & Install
 
@@ -82,6 +111,30 @@ After compilation, executables are located in `build/bin/` directory:
 - `bwtfs_cmd` - Command line tools
 - `bwtfs_mount` - FUSE mount tool
 - `bwtfs_net` - HTTP service (if enabled)
+
+### Web Interface Setup
+
+```bash
+# Navigate to web directory
+cd net/web
+
+# Install dependencies with pnpm
+pnpm install
+
+# Start development server
+pnpm start
+
+# Production build
+pnpm build
+
+# Access web interface
+# http://localhost:3001
+```
+
+**🚀 Complete startup process:**
+1. Start the backend service: `./build/BWTFileSystemProject` (port 9999)
+2. Start the front-end interface: `cd net/web && pnpm start` (port 3001)
+3. visit: http://localhost:3001
 
 ### Basic Usage
 
@@ -123,21 +176,41 @@ umount ./mountpoint
 # Windows just exit the program
 ```
 
-#### 3. HTTP Service
+#### 3. HTTP Service & Web Interface
 
 ```bash
-# Start HTTP server
+# Start HTTP server (from build directory)
 ./bwtfs_net
 
-# Access Web interface
-Open browser: http://localhost:9999
+# Access Modern Web interface
+Open browser: http://localhost:3001
 
-# API upload file
-curl -X POST -F "file=@document.pdf" http://localhost:9999/upload
+# Access API directly
+API Base URL: http://127.0.0.1:9999
+
+# API upload file (supports chunked upload for large files)
+curl -X POST \
+  -H "X-File-Id: unique_file_id" \
+  -H "X-Chunk-Index: 0" \
+  -H "X-Total-Chunks: 1" \
+  -H "X-File-Size: $(stat -c%s document.pdf)" \
+  -H "X-File-Name: document.pdf" \
+  --data-binary @document.pdf \
+  http://127.0.0.1:9999/upload
 
 # API download file
-curl -O http://localhost:9999/abc123def456...
+curl -O http://127.0.0.1:9999/abc123def456...
 ```
+
+**Web Interface Features:**
+- 🎨 **Modern-style UI** - Modern, responsive design
+- 📁 **File Management** - Drag-drop upload, folder operations, search
+- 🔍 **File Preview** - Built-in preview for images, PDF, text, markdown
+- 🔐 **Privacy-focused** - Token-based access with secure operations
+- ⚡ **Real-time Updates** - Toast notifications and live status
+- 📱 **Mobile Ready** - Responsive design for all devices
+
+> 📖 **详细文档**: [网络服务文档](net/README.md) | [前端界面文档](net/web/README.md)
 
 ## 📖 Documentation
 
@@ -145,8 +218,9 @@ curl -O http://localhost:9999/abc123def456...
 |----------|-------------|
 | [README_DEV.md](README_DEV.md) | Complete development documentation with architecture design and API documentation |
 | [README_CONFIG.md](README_CONFIG.md) | Detailed configuration file documentation |
+| [net/README.md](net/README.md) | BwtFS 网络服务完整文档 - 包含后端 API 和前端集成 |
+| [net/web/README.md](net/web/README.md) | Web 前端界面详细文档 - React 技术栈和功能说明 |
 | [fs/README.md](fs/README.md) | FUSE subproject documentation |
-| [net/README.md](net/README.md) | HTTP service documentation |
 | [fs/README_DEV.md](fs/README_DEV.md) | FUSE development documentation |
 | [net/README_DEV.md](net/README_DEV.md) | HTTP service development documentation |
 
@@ -224,22 +298,6 @@ Innovative layered storage structure:
 - **Transmission Encryption**: Network transmission uses HTTPS, preventing man-in-the-middle attacks
 - **Access Auditing**: Complete operation logging and audit trails
 
-## 🤝 Contributing
-
-Welcome to submit Issues and Pull Requests!
-
-### Development Environment Setup
-1. Fork this project
-2. Create feature branch: `git checkout -b feature/AmazingFeature`
-3. Commit changes: `git commit -m 'Add some AmazingFeature'`
-4. Push branch: `git push origin feature/AmazingFeature`
-5. Open Pull Request
-
-### Code Standards
-- Use C++20 standard
-- Follow existing code style
-- Add necessary comments and documentation
-- Ensure all tests pass
 
 ## 📄 License
 
@@ -248,10 +306,20 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 Thanks to the following open source projects:
+
+**Core System:**
 - [Boost.Beast](https://github.com/boostorg/beast) - HTTP/WebSocket library
 - [WinFSP](https://github.com/winfsp/winfsp) - Windows FUSE implementation
 - [macFUSE](https://github.com/osxfuse/osxfuse) - macOS FUSE implementation
 - [libfuse](https://github.com/libfuse/libfuse) - Linux FUSE implementation
+
+**Web Frontend:**
+- [React](https://github.com/facebook/react) - Modern UI framework
+- [Element Plus](https://github.com/element-plus/element-plus) - Vue 3 UI components
+- [TypeScript](https://github.com/microsoft/TypeScript) - Type-safe JavaScript
+- [Axios](https://github.com/axios/axios) - HTTP client library
+- [Lucide React](https://github.com/lucide-icons/lucide) - Icon library
+- [React-markdown](https://github.com/remarkjs/react-markdown) - Markdown renderer
 
 ---
 
