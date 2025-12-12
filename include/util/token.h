@@ -18,7 +18,7 @@ using BwtFS::Node::StringType;
 const std::string encodingChars = 
     "abcdefghijklmnopqrstuvwxyz"
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    "0123456789*-";
+    "0123456789+-";
 
 class Token {
     public:
@@ -39,6 +39,9 @@ class Token {
             // std::cout << "brca: " << data.to_base64_string() << std::endl;
             rca.forward();
             // std::cout << "token: " << data.to_base64_string() << std::endl;
+            // LOG_DEBUG << "bitmap: " << bitmap_ << ", start: " << start_ 
+            //           << ", length: " << length_ << ", seed: " << seed_ 
+            //           << ", level: " << int(level_);
             std::byte* data_ptr = data.data();
             size_t data_size = data.size();
             char ch, cache = 0;
@@ -68,6 +71,7 @@ class Token {
             std::string rca_base64 = Binary().append(sizeof(rca_), reinterpret_cast<std::byte*>(&rca_)).to_base64_string();
             std::replace(rca_base64.begin(), rca_base64.end(), '=', '_');
             token = rca_base64 + token;
+            // LOG_DEBUG << "RCA part: " << rca_base64 << ", token part: " << token.substr(12);
             // token = Binary().append(sizeof(rca_), reinterpret_cast<std::byte*>(&rca_)).to_base64_string().replace('=', '_') + token;
             // std::cout << Binary().append(sizeof(rca_), reinterpret_cast<std::byte*>(&rca_)).to_base64_string().length() << std::endl;
             return token;
@@ -80,10 +84,12 @@ class Token {
             using BwtFS::Util::RCA;
             Binary data;
             size_t token_size = token.size();
+
             auto rca_binary = Binary(token.substr(0, 12), StringType::BASE64);
             rca_ = reinterpret_cast<uint64_t*>(rca_binary.data())[0];
             // std::cout << "rca seed: " << rca_ << std::endl;
             // std::cout << "token: " << token.substr(12, 40) << std::endl;
+            // LOG_DEBUG << "RCA part: " << token.substr(0, 12) << ", token part: " << token.substr(12);
             char cache = 0;
             int cache_size = 0;
             for (size_t i = 12; i < token_size; i++){
@@ -119,6 +125,9 @@ class Token {
             length_ = *reinterpret_cast<uint16_t*>(data_ptr + sizeof(bitmap_) + sizeof(start_));
             seed_ = *reinterpret_cast<uint16_t*>(data_ptr + sizeof(bitmap_) + sizeof(start_) + sizeof(length_));
             level_ = *reinterpret_cast<uint8_t*>(data_ptr + sizeof(bitmap_) + sizeof(start_) + sizeof(length_) + sizeof(seed_));
+            // LOG_DEBUG << "Decoded - bitmap: " << bitmap_ << ", start: " << start_ 
+            //           << ", length: " << length_ << ", seed: " << seed_ 
+            //           << ", level: " << int(level_);
         }
         size_t get_bitmap() const {
             return bitmap_;

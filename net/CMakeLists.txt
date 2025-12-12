@@ -3,70 +3,29 @@ file(GLOB_RECURSE NET_SOURCES LIST_DIRECTORIES false *.h *.cpp *.hpp)
 
 set(SOURCES ${NET_SOURCES})
 
-
-
 add_executable(${BINARY} ${NET_SOURCES})
-# message("${CMAKE_CURRENT_SOURCE_DIR}")
+
+# Include core headers
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/beast/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/asio/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/json/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/config/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/core/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/static_assert/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/preprocessor/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/throw_exception/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/assert/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/align/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/error_code/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/system/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/winapi/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/chrono/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/predef/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/utility/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/optional/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/type_traits/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/date_time/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/smart_ptr/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/numeric/conversion/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/mpl/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/mp11/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/bind/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/intrusive/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/move/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/logic/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/static_string/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/container_hash/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/describe/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/variant/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/graph/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/graph_parallel/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/io/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/regex/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/serialization/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/locale/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/algorithm/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/endian/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/container/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/variant2/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/range/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/iterator/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/concept_check/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/function/include")
+
+# Include cpp-httplib and nlohmann/json headers
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/include")
+
+# Add Windows specific includes if needed
+if(WIN32)
+    include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/winapi/include")
+endif()
 
 add_library(${BINARY}_lib STATIC ${SOURCES})
 
-if (WIN32)
-    target_link_libraries(${BINARY} PRIVATE ${WS2_32_LIB})
-endif()
-# 链接src生成的库
-target_link_libraries(${BINARY} PUBLIC ${CMAKE_PROJECT_NAME}_lib boost_system 
-boost_filesystem boost_thread boost_date_time
- boost_regex boost_chrono boost_log boost_log_setup)
+# Link with the main BwtFS library
+target_link_libraries(${BINARY} PUBLIC ${CMAKE_PROJECT_NAME}_lib)
+
+# Platform-specific networking libraries
 if(WIN32)
-    target_link_libraries(${BINARY} PRIVATE Ws2_32 Mswsock)
+    target_link_libraries(${BINARY} PRIVATE Ws2_32 Mswsock Crypt32)
 else()
-      # Linux 需要 pthread 和 rt 库
+    # Linux needs pthread for threading
     target_link_libraries(${BINARY} PRIVATE pthread)
     if (NOT APPLE)
         target_link_libraries(${BINARY} PRIVATE rt)

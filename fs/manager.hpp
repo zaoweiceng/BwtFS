@@ -464,7 +464,7 @@ public:
     
     // 添加文件
     bool addFile(const std::string& path, const std::string& token = "", size_t file_size = 0) {
-        LOG_DEBUG << "addFile path: '" << path << "'";
+        // LOG_DEBUG << "addFile path: '" << path << "'";
         auto [parent, name] = getParentAndName(path);
 
         if (!parent || name.empty()) {
@@ -472,7 +472,7 @@ public:
             return false;
         }
 
-        LOG_DEBUG << "addFile - parent path: " << (parent == &root_json ? "ROOT" : "CHILD") << ", name: '" << name << "'";
+        // LOG_DEBUG << "addFile - parent path: " << (parent == &root_json ? "ROOT" : "CHILD") << ", name: '" << name << "'";
 
         // 检查是否已存在
         if (parent == &root_json) {
@@ -495,17 +495,17 @@ public:
 
         if (parent == &root_json) {
             // 直接在根目录下创建
-            LOG_DEBUG << "Adding file in root: " << name;
+            // LOG_DEBUG << "Adding file in root: " << name;
             (*parent)[name] = new_file;
         } else {
             // 在children中创建
-            LOG_DEBUG << "Adding file in children: " << name;
+            // LOG_DEBUG << "Adding file in children: " << name;
             (*parent)["children"][name] = new_file;
         }
 
-        LOG_DEBUG << "About to save JSON content for file";
+        // LOG_DEBUG << "About to save JSON content for file";
         saveToFile(this->file_path);
-        LOG_DEBUG << "添加文件: " << path << " (token: " << token << ")";
+        // LOG_DEBUG << "添加文件: " << path << " (token: " << token << ")";
         return true;
     }
     
@@ -550,7 +550,7 @@ public:
         }
 
         saveToFile(this->file_path);
-        LOG_DEBUG << "删除: " << path;
+        // LOG_DEBUG << "删除: " << path;
         return true;
     }
     
