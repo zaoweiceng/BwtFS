@@ -6,8 +6,9 @@
     #include <fuse.h>
     #include <sys/stat.h>
 #elif defined(__APPLE__)
-    // macOS平台使用macFUSE，FUSE版本26（兼容性更好）
-    #define FUSE_USE_VERSION 26
+    // macOS平台使用macFUSE，FUSE版本30
+    #define HAVE_ACCESS 0
+    #define FUSE_USE_VERSION 30
     #include <fuse.h>
 #else
     // Linux平台使用libfuse3，FUSE版本35
@@ -789,8 +790,22 @@ int main(int argc, char *argv[]){
     }else{
         // 提供了挂载点和Bwtfs系统文件路径参数，使用bwtfs
         try{
-            std::string bwtfs_file_path = std::string(argv[2]);
-            std::string bwtfs_dir_path = std::string(argv[3]);
+            std::string bwtfs_file_path;
+            std::string bwtfs_dir_path;
+            if (argc == 4){
+                bwtfs_file_path = std::string(argv[2]);
+                bwtfs_dir_path = std::string(argv[3]);
+            }else if (argc == 3){
+                bwtfs_file_path = std::string(argv[2]);
+                // LOG_INFO << "No bwtfs_dir_path provided, using default from config.";
+                auto config = BwtFS::Config::getInstance();
+                bwtfs_dir_path = config["system"]["filesystem_structure_json"]; // 使用默认目录
+            }else{
+                LOG_ERROR << "Usage: " << argv[0] << " <mount_point> <bwtfs_file_path> [bwtfs_dir_path]";
+                return 1;
+            }
+            LOG_INFO << "BwtFS file path: " <<  bwtfs_file_path;
+            LOG_INFO << "BwtFS dir path: " <<  bwtfs_dir_path;
 
             // 确保使用绝对路径
             if (!bwtfs_dir_path.empty() && bwtfs_dir_path[0] != '/') {
