@@ -3,6 +3,7 @@ import './App.css';
 import FileManager from './components/FileManager';
 import Header from './components/Header';
 import Notification from './components/Notification';
+import { SystemInfoProvider } from './contexts/SystemInfoContext';
 import { fileApi } from './services/api';
 import { showNotification } from './components/Notification';
 
@@ -22,15 +23,37 @@ function App() {
     };
 
     testApi();
+
+    // 添加全局拖拽事件处理，防止文件在页面其他地方被浏览器打开
+    const handleGlobalDragOver = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    const handleGlobalDrop = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    document.addEventListener('dragover', handleGlobalDragOver);
+    document.addEventListener('drop', handleGlobalDrop);
+
+    // 清理事件监听器
+    return () => {
+      document.removeEventListener('dragover', handleGlobalDragOver);
+      document.removeEventListener('drop', handleGlobalDrop);
+    };
   }, []);
 
   return (
     <div className="app">
-      <Notification />
-      <Header />
-      <main className="main-content">
-        <FileManager />
-      </main>
+      <SystemInfoProvider>
+        <Notification />
+        <Header />
+        <main className="main-content">
+          <FileManager />
+        </main>
+      </SystemInfoProvider>
     </div>
   );
 }
