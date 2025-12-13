@@ -560,9 +560,11 @@ public:
 
     void start(const std::string& host, int port) {
         LOG_INFO << "Server starting at http://" << host << ":" << port;
+        auto config = BwtFS::Config::getInstance();
+        size_t max_body_size = std::stoull(config["server"]["max_body_size"]); // Default 100MB
 
         // Set server settings
-        server.set_payload_max_length(1024 * 1024 * 100); // 100MB max payload
+        server.set_payload_max_length(max_body_size); // 100MB max payload
 
         // Start server
         if (!server.listen(host.c_str(), port)) {
