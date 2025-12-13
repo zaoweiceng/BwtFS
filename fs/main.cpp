@@ -6,9 +6,8 @@
     #include <fuse.h>
     #include <sys/stat.h>
 #elif defined(__APPLE__)
-    // macOS平台使用macFUSE，FUSE版本30
-    #define HAVE_ACCESS 0
-    #define FUSE_USE_VERSION 30
+    // macOS平台使用macFUSE，FUSE版本29
+    #define FUSE_USE_VERSION 29
     #include <fuse.h>
 #else
     // Linux平台使用libfuse3，FUSE版本35

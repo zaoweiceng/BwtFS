@@ -29,13 +29,13 @@ void BwtFS::System::Bitmap::set(const size_t index) {
     auto bit_index = index % 8;
     auto byte = (uint8_t)this->bitmap.get(byte_index);
     auto bit = (uint8_t)(byte | (1 << bit_index));
-    this->bitmap.set(byte_index, std::byte(bit));
-    this->save_bitmap();
     auto wear = (uint8_t)this->bitmap_wear.get(index);
-    if (wear > 254) {
+    if (wear >= 254) {
         LOG_WARNING << "Attempt to set a system block. This may cause system error.";
         return;
     }
+    this->bitmap.set(byte_index, std::byte(bit));
+    this->save_bitmap();
     wear = wear + 1;
     if (wear > 250 && wear < 254) {
         this->wear_balance();
