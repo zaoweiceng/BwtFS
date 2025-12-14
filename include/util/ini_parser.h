@@ -63,7 +63,7 @@ namespace BwtFS{
                 }},
                 {"server", { 
                     {"port", BwtFS::DefaultConfig::SERVER_PORT},
-                    {"address", BwtFS::DefaultConfig::SERVER_ADDRESS}, 
+                    {"host", BwtFS::DefaultConfig::SERVER_ADDRESS}, 
                     {"max_body_size", std::to_string(BwtFS::DefaultConfig::SERVER_MAX_BODY_SIZE)}
                 }}
             };

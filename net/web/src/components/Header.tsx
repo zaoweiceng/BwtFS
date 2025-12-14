@@ -4,8 +4,14 @@ import { fileApi } from '../services/api';
 import { fileManager } from '../services/fileManager';
 import { useSystemInfo } from '../contexts/SystemInfoContext';
 import { showNotification } from './Notification';
+import ApiConfig from './ApiConfig';
 
-const Header: React.FC = () => {
+interface HeaderProps {
+  onApiUrlChange?: (newUrl: string) => void;
+  currentApiUrl?: string;
+}
+
+const Header: React.FC<HeaderProps> = ({ onApiUrlChange, currentApiUrl }) => {
   const { systemInfo, loadSystemInfo, isLoading } = useSystemInfo();
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [showClearDialog, setShowClearDialog] = useState(false);
@@ -255,6 +261,12 @@ const Header: React.FC = () => {
               <Plus size={16} />
               添加文件
             </button>
+            {onApiUrlChange && currentApiUrl && (
+              <ApiConfig
+                onApiUrlChange={onApiUrlChange}
+                currentUrl={currentApiUrl}
+              />
+            )}
           </div>
         </div>
       </div>

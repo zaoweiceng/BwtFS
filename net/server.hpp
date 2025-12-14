@@ -434,7 +434,7 @@ public:
                 path = path.substr(1);
             }
 
-            LOG_DEBUG << "Requested file path: " << path;
+            // LOG_DEBUG << "Requested file path: " << path;
 
             if (path.length() < 20 || path.find('/') != std::string::npos) {
                 LOG_ERROR << "Invalid token: " << path;

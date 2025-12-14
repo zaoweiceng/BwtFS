@@ -19,16 +19,16 @@ int main(int argc, char* argv[]){
 
         auto system = BwtFS::System::openBwtFS(system_file_path);
 
-        std::string address = config["server"]["address"];
+        std::string host = config["server"]["host"];
         unsigned short port = static_cast<unsigned short>(std::stoi(config["server"]["port"]));
 
         // Create and start the HTTP server
         HttpServer server;
 
-        LOG_INFO << "Server started at: http://" << address << ":" << port;
+        LOG_INFO << "Server started at: http://" << host << ":" << port;
 
         // Start server (this will block until server stops)
-        server.start(address, port);
+        server.start(host, port);
 
     }
     catch (const std::exception& e) {

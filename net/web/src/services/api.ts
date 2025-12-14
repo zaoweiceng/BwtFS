@@ -1,16 +1,22 @@
 import axios from 'axios';
 import { FileInfo, SystemInfo, ApiResponse, UploadProgress } from '../types';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || '';
+let API_BASE_URL = process.env.REACT_APP_API_BASE_URL || '';
 
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 300000, // 5分钟超时
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  withCredentials: false // 禁用withCredentials以支持CORS通配符
-});
+// 创建一个函数来获取axios实例
+const createApiInstance = (baseURL: string) => {
+  return axios.create({
+    baseURL,
+    timeout: 300000, // 5分钟超时
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    withCredentials: false // 禁用withCredentials以支持CORS通配符
+  });
+};
+
+// 初始API实例
+let api = createApiInstance(API_BASE_URL);
 
 // 添加请求拦截器用于调试
 api.interceptors.request.use(
@@ -48,6 +54,51 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// 更新API基础URL的函数
+export const updateApiBaseUrl = (newUrl: string) => {
+  API_BASE_URL = newUrl;
+  api = createApiInstance(newUrl);
+
+  // 重新添加拦截器
+  api.interceptors.request.use(
+    (config) => {
+      console.log('API Request:', {
+        method: config.method?.toUpperCase(),
+        url: `${API_BASE_URL}${config.url}`,
+        headers: config.headers,
+        data: config.data
+      });
+      return config;
+    },
+    (error) => {
+      console.error('API Request Error:', error);
+      return Promise.reject(error);
+    }
+  );
+
+  api.interceptors.response.use(
+    (response) => {
+      console.log('API Response:', {
+        status: response.status,
+        data: response.data,
+        headers: response.headers
+      });
+      return response;
+    },
+    (error) => {
+      console.error('API Response Error:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
+      return Promise.reject(error);
+    }
+  );
+};
+
+// 获取当前API基础URL
+export const getApiBaseUrl = () => API_BASE_URL;
 
 export const fileApi = {
   // 获取文件系统信息
