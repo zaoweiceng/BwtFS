@@ -25,7 +25,7 @@ BwtFS Net 是 BwtFS 隐私保护文件系统的网络化扩展，提供现代化
 - **安全删除**：文件删除后完全不可恢复
 
 ### 🌐 RESTful API
-- **HTTP 服务器**：基于 Boost.Beat 的高性能异步服务
+- **HTTP 服务器**：基于 httplib.h 的高性能异步服务
 - **CORS 支持**：完整的跨域资源共享支持
 - **错误处理**：完善的错误响应机制
 - **分块传输**：支持大文件分块上传和流式下载
@@ -35,7 +35,7 @@ BwtFS Net 是 BwtFS 隐私保护文件系统的网络化扩展，提供现代化
 ### 编译要求
 - C++17 或更高版本
 - CMake 3.10 或更高版本
-- Boost 库（Beast, Asio, Json, Filesystem）
+- httplib.h 和 jsoncpp 库（已包含在 lib 目录中）
 - Node.js 16.0+（前端开发）
 
 ### 编译后端服务
@@ -75,7 +75,7 @@ pnpm build
 
 ### 访问应用
 - **后端 API**：http://127.0.0.1:9999
-- **Web 界面**：http://localhost:3001
+- **Web 界面**：http://localhost:3000
 
 ## 📖 API 接口
 
@@ -137,9 +137,8 @@ net/
 
 ### 后端技术栈
 - **C++17**：现代 C++ 标准
-- **Boost.Beast**：HTTP/1.1 服务器框架
-- **Boost.Asio**：异步 I/O 库
-- **Boost.JSON**：JSON 处理
+- **httplib.h**：HTTP/1.1 服务器框架
+- **jsoncpp**：JSON 处理库
 - **BwtFS Core**：核心文件系统库
 
 ### 前端技术栈
@@ -154,7 +153,7 @@ net/
 ### 服务器配置
 ```ini
 [server]
-address = 127.0.0.1
+host = 127.0.0.1
 port = 9999
 max_body_size = 104857600
 ```

@@ -48,5 +48,6 @@ lib/googletest/*
 lib/boost/*
 lib/jsoncpp/*
 **/CLAUDE.md
+trae/
 .DS_Store
 Thumbs.db

@@ -13,7 +13,7 @@ include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/include")
 
 # Add Windows specific includes if needed
 if(WIN32)
-    include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../lib/boost/libs/winapi/include")
+    # No additional includes needed for httplib.h and jsoncpp
 endif()
 
 add_library(${BINARY}_lib STATIC ${SOURCES})

@@ -458,16 +458,16 @@ net 子项目提供了基于 HTTP 的文件存储服务，支持 Web 界面和 R
 ### 5.2 技术架构
 
 #### 核心技术栈
-- **网络库**: Boost.Beast (HTTP 服务器)
-- **异步 I/O**: Boost.Asio
-- **JSON 处理**: Boost.JSON
+- **网络库**: httplib.h (HTTP 服务器)
+- **异步 I/O**: httplib.h 内置异步模型
+- **JSON 处理**: jsoncpp
 - **文件系统**: BwtFS 核心库
 
 #### 架构设计
 ```
 HTTP Client
     ↓
-HTTP Server (Boost.Beast)
+HTTP Server (httplib.h)
     ├── 请求路由
     ├── 分块处理
     ├── Token 管理
@@ -526,7 +526,7 @@ Response:
 ### 5.5 性能优化
 
 #### 连接管理
-- **异步处理**: 基于 Boost.Asio 的异步 I/O
+- **异步处理**: 基于 httplib.h 内置的异步 I/O
 - **短连接**: 除文件上传外使用短连接
 - **连接池**: 复用 TCP 连接提高效率
 

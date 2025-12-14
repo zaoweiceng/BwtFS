@@ -138,7 +138,7 @@ if (node && BwtFS::Node::deleteNode(token)) {
 
 ### 1. 异步 I/O 模型
 
-- **选择**：Boost.Asio 异步模型
+- **选择**：httplib.h 内置异步模型
 - **优势**：高并发、低资源消耗
 - **实现**：每个连接独立处理，避免阻塞
 
