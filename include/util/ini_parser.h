@@ -58,7 +58,8 @@ namespace BwtFS{
                 {"system", {
                     {"path", BwtFS::DefaultConfig::SYSTEM_FILE_PATH}, 
                     {"size", std::to_string(BwtFS::DefaultConfig::SYSTEM_FILE_SIZE)}, 
-                    {"prefix", BwtFS::DefaultConfig::SYSTEM_FILE_PREFIX}
+                    {"prefix", BwtFS::DefaultConfig::SYSTEM_FILE_PREFIX},
+                    {"filesystem_structure_json", BwtFS::DefaultConfig::FILESYSTEM_STRUCTURE_JSON}
                 }},
                 {"server", { 
                     {"port", BwtFS::DefaultConfig::SERVER_PORT},

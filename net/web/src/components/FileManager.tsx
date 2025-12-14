@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Upload, FolderPlus, RefreshCw, Download, MoreVertical, Eye, Search, X, Move } from 'lucide-react';
+import { Upload, FolderPlus, RefreshCw, Download, MoreVertical, Eye, Search, X, Move, Key } from 'lucide-react';
 import { fileApi } from '../services/api';
 import { fileManager } from '../services/fileManager';
 import { FileInfo, UploadProgress } from '../types';
 import { showNotification } from './Notification';
+import { useSystemInfo } from '../contexts/SystemInfoContext';
 import FilePreview from './FilePreview';
 
 
 const FileManager: React.FC = () => {
+  const { loadSystemInfo } = useSystemInfo();
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [allFiles, setAllFiles] = useState<FileInfo[]>([]); // 存储所有文件用于搜索
   const [currentPath, setCurrentPath] = useState<string>('');
@@ -28,6 +30,11 @@ const FileManager: React.FC = () => {
   const [availableFolders, setAvailableFolders] = useState<string[]>([]);
   const [selectedTargetPath, setSelectedTargetPath] = useState<string>(''); // Move dialog target
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set()); // Track expanded folders in tree
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [fileToDelete, setFileToDelete] = useState<FileInfo | null>(null);
+  const [showTokenDialog, setShowTokenDialog] = useState(false);
+  const [fileToken, setFileToken] = useState<string>('');
+  const [isDragOver, setIsDragOver] = useState(false);
 
   useEffect(() => {
     loadFiles();
@@ -98,6 +105,8 @@ const FileManager: React.FC = () => {
         fileManager.addFile(filePath, response.token, file.size);
         loadFiles();
         setShowUploadDialog(false);
+        // 更新系统信息（可用空间等）
+        await loadSystemInfo();
         showNotification(`文件上传成功！Token: ${response.token}`, 'success');
       }
     } catch (error) {
@@ -131,22 +140,29 @@ const FileManager: React.FC = () => {
     }
   };
 
-  const handleDelete = async (file: FileInfo) => {
-    if (!window.confirm(`确定要删除 ${file.name} 吗？`)) {
-      return;
-    }
+  const handleDeleteClick = (file: FileInfo) => {
+    setFileToDelete(file);
+    setShowDeleteDialog(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!fileToDelete) return;
 
     try {
-      if (file.token && !file.is_dir) {
+      if (fileToDelete.token && !fileToDelete.is_dir) {
         // 从后端删除文件
-        await fileApi.deleteFile(file.token);
+        await fileApi.deleteFile(fileToDelete.token);
       }
 
       // 从本地文件管理器中删除
-      const filePath = currentPath ? `${currentPath}/${file.name}` : file.name;
+      const filePath = currentPath ? `${currentPath}/${fileToDelete.name}` : fileToDelete.name;
       fileManager.deleteItem(filePath);
       loadFiles();
+      // 更新系统信息（可用空间等）
+      await loadSystemInfo();
       showNotification('删除成功', 'success');
+      setShowDeleteDialog(false);
+      setFileToDelete(null);
     } catch (error) {
       console.error('Delete failed:', error);
       showNotification('删除失败', 'error');
@@ -377,10 +393,52 @@ const FileManager: React.FC = () => {
     setPreviewFile(null);
   };
 
+  const handleViewToken = (file: FileInfo) => {
+    if (file.token) {
+      setFileToken(file.token);
+      setShowTokenDialog(true);
+    } else {
+      showNotification('该文件没有 Token', 'warning');
+    }
+  };
+
+  const handleCopyToken = async () => {
+    try {
+      await navigator.clipboard.writeText(fileToken);
+      showNotification('Token 已复制到剪贴板', 'success');
+    } catch (error) {
+      showNotification('复制失败，请手动复制', 'error');
+    }
+  };
+
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       handleFileUpload(file);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      // 只处理第一个文件
+      handleFileUpload(files[0]);
     }
   };
 
@@ -541,6 +599,17 @@ const FileManager: React.FC = () => {
                   <Download size={14} />
                 </button>
                 <button
+                  className={`btn btn-sm ${file.token ? 'btn-info' : 'btn-secondary'}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleViewToken(file);
+                  }}
+                  title={file.token ? "查看Token" : "没有Token"}
+                  disabled={!file.token}
+                >
+                  <Key size={14} />
+                </button>
+                <button
                   className="btn btn-sm btn-secondary"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -566,7 +635,7 @@ const FileManager: React.FC = () => {
                   className="btn btn-sm btn-danger"
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleDelete(file);
+                    handleDeleteClick(file);
                   }}
                   title="删除"
                 >
@@ -603,7 +672,12 @@ const FileManager: React.FC = () => {
               </button>
             </div>
             <div className="modal-body">
-              <div className="upload-area">
+              <div
+                className={`upload-area ${isDragOver ? 'drag-over' : ''}`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
                 <input
                   type="file"
                   onChange={handleFileInputChange}
@@ -613,7 +687,7 @@ const FileManager: React.FC = () => {
                 />
                 <label htmlFor="file-upload" className="upload-label">
                   <div className="upload-icon">📁</div>
-                  <p>点击选择文件上传</p>
+                  <p>点击或拖拽文件到此处上传</p>
                 </label>
               </div>
 
@@ -737,6 +811,100 @@ const FileManager: React.FC = () => {
                 onClick={handleMoveConfirm}
               >
                 确定
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 删除确认对话框 */}
+      {showDeleteDialog && fileToDelete && (
+        <div className="modal-overlay" onClick={() => setShowDeleteDialog(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>删除确认</h3>
+              <button className="modal-close" onClick={() => setShowDeleteDialog(false)}>
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="warning-message">
+                <div className="warning-icon">⚠️</div>
+                <p><strong>确定要删除 "{fileToDelete.name}" 吗？</strong></p>
+                {fileToDelete.is_dir ? (
+                  <p>此操作将删除整个文件夹及其包含的所有内容，此操作不可撤销。</p>
+                ) : (
+                  <p>此操作将永久删除该文件，此操作不可撤销。</p>
+                )}
+                <p>请确认您是否要继续删除？</p>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button
+                className="btn btn-secondary"
+                onClick={() => {
+                  setShowDeleteDialog(false);
+                  setFileToDelete(null);
+                }}
+              >
+                取消
+              </button>
+              <button
+                className="btn btn-danger"
+                onClick={handleDeleteConfirm}
+              >
+                确认删除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Token 查看对话框 */}
+      {showTokenDialog && (
+        <div className="modal-overlay" onClick={() => setShowTokenDialog(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>文件 Token</h3>
+              <button className="modal-close" onClick={() => setShowTokenDialog(false)}>
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="token-container">
+                <div className="token-label">
+                  <Key size={20} />
+                  <span>访问令牌 (Token)</span>
+                </div>
+                <div className="token-display">
+                  <div className="token-value">
+                    {fileToken}
+                  </div>
+                  <button
+                    className="btn btn-sm btn-info copy-token-btn"
+                    onClick={handleCopyToken}
+                    title="复制Token"
+                  >
+                    复制
+                  </button>
+                </div>
+                <div className="token-info">
+                  <p><strong>说明：</strong></p>
+                  <ul>
+                    <li>Token 是文件的唯一访问标识</li>
+                    <li>通过 Token 可以访问和下载对应的文件</li>
+                    <li>请妥善保管 Token，避免泄露</li>
+                    <li>如需分享文件，可以分享此 Token</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowTokenDialog(false)}
+              >
+                关闭
               </button>
             </div>
           </div>

@@ -57,10 +57,10 @@ bool BwtFS::System::initBwtFS(const std::string& path){
     LOG_DEBUG << "Block size: " << block_size;
     LOG_DEBUG << "Block count: " << block_count;
     LOG_DEBUG << "Create time: " << create_time;
-    LOG_DEBUG << "Modify time: " << modify_time;
-    LOG_DEBUG << "Bitmap size: " << bitmap_size;
-    LOG_DEBUG << "Bitmap start: " << bitmap;
-    LOG_DEBUG << "Bitmap wear start: " << bitmap_wear;
+    // LOG_DEBUG << "Modify time: " << modify_time;
+    // LOG_DEBUG << "Bitmap size: " << bitmap_size;
+    // LOG_DEBUG << "Bitmap start: " << bitmap;
+    // LOG_DEBUG << "Bitmap wear start: " << bitmap_wear;
 
     BwtFS::Node::Binary binary(0);
     binary.append(sizeof(version), reinterpret_cast<std::byte*>(&version));

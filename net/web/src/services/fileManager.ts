@@ -400,6 +400,13 @@ export class FileManager {
     });
   }
 
+  // 清空整个目录结构
+  clearDirectory(): boolean {
+    this.fileStructure = {};
+    this.saveToStorage();
+    return true;
+  }
+
   // 获取文件信息
   getFileInfo(path: string): FileInfo | null {
     const pathParts = path.replace(/^\/+/, '').replace(/\/+$/, '').split('/').filter(part => part);

@@ -20,25 +20,25 @@ BwtFS::System::File::File(const std::string &path){
         BwtFS::System::File::createFile(path_, std::stoull(config["system_file"]["size"]), config["system_file"]["prefix"]);
         LOG_INFO << "File created: " << path_;
     }
-    LOG_DEBUG << "Opening file: " << path_;
+    // LOG_DEBUG << "Opening file: " << path_;
     this->file = std::make_shared<std::fstream>();
     file->open(path_, std::ios::in | std::ios::out | std::ios::binary);
     if (!file->is_open()){
         LOG_ERROR << "Failed to open file: " << path_;
         throw std::runtime_error(std::string("Failed to open file: ") + __FILE__ + ":" + std::to_string(__LINE__));
     }
-    LOG_DEBUG << "File opened: " << path_;
+    // LOG_DEBUG << "File opened: " << path_;
     fb = file->rdbuf();
     if (fb == nullptr){
         LOG_ERROR << "Failed to open file: " << path_;
         throw std::runtime_error(std::string("Failed to open file: ") + __FILE__ + ":" + std::to_string(__LINE__));
     }
-    LOG_DEBUG << "File buffer opened: " << path_;
+    // LOG_DEBUG << "File buffer opened: " << path_;
     this->file_size = fs::file_size(path_);
-    LOG_DEBUG << "File size: " << this->file_size;
+    // LOG_DEBUG << "File size: " << this->file_size;
     fb->pubseekpos(this->file_size - sizeof(unsigned));
     fb->sgetn(reinterpret_cast<char*>(&this->prefix_size), sizeof(unsigned));
-    LOG_DEBUG << "Prefix size: " << this->prefix_size;
+    // LOG_DEBUG << "Prefix size: " << this->prefix_size;
     if (this->prefix_size == 0){
         this->has_prefix = false;
     }else{

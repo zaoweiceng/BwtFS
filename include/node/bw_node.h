@@ -35,7 +35,7 @@ namespace BwtFS::Node{
                 if constexpr (std::is_same<E, RCAEncryptor>::value) {
                     auto seeds = BwtFS::Util::RandNumbers<uint16_t>(level, seed, 0, 1<<15);
                     std::reverse(seeds.begin(), seeds.end());
-                    LOG_DEBUG << "Decrypting with level: " << int(level) << ", seed: " << seed;
+                    // LOG_DEBUG << "Decrypting with level: " << int(level) << ", seed: " << seed;
                     for (int i = 0; i < level; i++) {
                         E e;
                         e.setBinary(m_value);
@@ -165,23 +165,23 @@ namespace BwtFS::Node{
              : tree_base_node<E>(value, level, seed, start, length), m_entry_list(make_secure<entry_list>()) {
 
 
-                LOG_DEBUG << "Content: " << value.to_base64_string();
+                // LOG_DEBUG << "Content: " << value.to_base64_string();
                 
                 
                 
                 this->index = *reinterpret_cast<uint8_t*>(value.read(0, sizeof(uint8_t)).data());
                 this->size_of_entry = *reinterpret_cast<uint8_t*>(value.read(sizeof(uint8_t), sizeof(uint8_t)).data());
-                LOG_DEBUG << "level: " << int(level) << ", seed: " << seed;
-                LOG_DEBUG << "Original size_of_entry: " << int(this->size_of_entry);
+                // LOG_DEBUG << "level: " << int(level) << ", seed: " << seed;
+                // LOG_DEBUG << "Original size_of_entry: " << int(this->size_of_entry);
                 // validate_and_correct_size_of_entry(length);
                 // LOG_DEBUG << "Validated size_of_entry: " << int(this->size_of_entry);
                 this->m_value = Binary(value.read(start, length));
                 // this->size_of_entry = length/entry::size();
                 BwtFS::Node::entry_list entry_data;
-                LOG_DEBUG << "start: " << start << ", length: " << length
-                          << ", value size: " << this->m_value.size()
-                          << ", entry size: " << length/entry::size()
-                          << ", size_of_entry: " << int(this->size_of_entry);
+                // LOG_DEBUG << "start: " << start << ", length: " << length
+                //           << ", value size: " << this->m_value.size()
+                //           << ", entry size: " << length/entry::size()
+                //           << ", size_of_entry: " << int(this->size_of_entry);
                 if (this->m_value.size() < length) {
                     LOG_ERROR << "Insufficient data: m_value size (" << this->m_value.size()
                              << ") is less than requested length (" << length << ")";
@@ -193,7 +193,7 @@ namespace BwtFS::Node{
                 }
                 // LOG_DEBUG << "entry_data size: " << entry_data.size();
                 for (size_t i = 0; i < entry_data.size(); i++) {
-                    LOG_DEBUG << "Enrty List of i: " << i << ", Bitmap is: " << entry_data.get_entry(i).get_bitmap();
+                    // LOG_DEBUG << "Enrty List of i: " << i << ", Bitmap is: " << entry_data.get_entry(i).get_bitmap();
                     this->m_entry_list->add_entry(entry_data.get_entry(i));
                 }
             }
@@ -203,9 +203,9 @@ namespace BwtFS::Node{
                 this->length = 0;
                 this->index = *reinterpret_cast<uint8_t*>(value.read(0, sizeof(uint8_t)).data());
                 this->size_of_entry = *reinterpret_cast<uint8_t*>(value.read(sizeof(uint8_t), sizeof(uint8_t)).data());
-                LOG_DEBUG << "Constructor2 - Original size_of_entry: " << int(this->size_of_entry);
+                // LOG_DEBUG << "Constructor2 - Original size_of_entry: " << int(this->size_of_entry);
                 validate_and_correct_size_of_entry(length);
-                LOG_DEBUG << "Constructor2 - Validated size_of_entry: " << int(this->size_of_entry);
+                // LOG_DEBUG << "Constructor2 - Validated size_of_entry: " << int(this->size_of_entry);
                 this->m_value = Binary(value.read(start, length));
                 // LOG_DEBUG << "start: " << start << ", length: " << length << ", value: " << length/entry::size();
                 BwtFS::Node::entry_list entry_data;
@@ -243,7 +243,7 @@ namespace BwtFS::Node{
                 Binary binary_data;
                 binary_data.append(sizeof(uint8_t), reinterpret_cast<std::byte*>(&this->index));
                 binary_data.append(sizeof(uint8_t), reinterpret_cast<std::byte*>(&this->size_of_entry));
-                LOG_INFO << "index: " << int(this->index) << ", size_of_entry: " << int(this->size_of_entry);
+                // LOG_INFO << "index: " << int(this->index) << ", size_of_entry: " << int(this->size_of_entry);
                 Binary entry_data = m_entry_list->to_binary();
                 unsigned gap = BwtFS::BLOCK_SIZE - sizeof(uint8_t) - sizeof(uint8_t) - entry_data.size();
                 int rand = BwtFS::Util::RandNumber(std::time(nullptr), 0, gap);
@@ -260,7 +260,7 @@ namespace BwtFS::Node{
                 auto seeds = BwtFS::Util::RandNumbers<uint16_t>(level, seed, 0, 1<<15);
 
                 
-                LOG_DEBUG << "de Content before encryption: " << binary_data.to_base64_string();
+                // LOG_DEBUG << "de Content before encryption: " << binary_data.to_base64_string();
                 
                 // if constexpr (E::value == "RCAEncryptor") {
                 if constexpr (std::is_same<E, RCAEncryptor>::value) {
@@ -274,7 +274,7 @@ namespace BwtFS::Node{
                     E e;
                     e.encrypt(binary_data.data(), binary_data.size());
                 }
-                LOG_DEBUG << "de Content after encryption: " << binary_data.to_base64_string();
+                // LOG_DEBUG << "de Content after encryption: " << binary_data.to_base64_string();
                 return binary_data;
             }
 
@@ -323,9 +323,9 @@ namespace BwtFS::Node{
                 uint8_t calculated_max = length / entry::size();
 
                 if (this->size_of_entry > calculated_max) {
-                    LOG_WARNING << "Invalid size_of_entry detected: " << int(this->size_of_entry)
-                               << ", max possible: " << int(calculated_max)
-                               << ", data length: " << length;
+                    // LOG_WARNING << "Invalid size_of_entry detected: " << int(this->size_of_entry)
+                    //            << ", max possible: " << int(calculated_max)
+                    //            << ", data length: " << length;
                     // Use calculated value as fallback
                     this->size_of_entry = calculated_max;
                 }

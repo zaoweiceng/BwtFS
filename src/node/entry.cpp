@@ -39,9 +39,9 @@ BwtFS::Node::entry BwtFS::Node::entry::from_binary(Binary& binary_data) {
 
     auto type_enum = (type == 0) ? NodeType::WHITE_NODE : NodeType::BLACK_NODE;
 
-    LOG_DEBUG << "Deserializing entry: bitmap=" << bitmap << ", type=" << int(type)
-              << ", start=" << start << ", length=" << length
-              << ", seed=" << seed << ", level=" << int(level);
+    // LOG_DEBUG << "Deserializing entry: bitmap=" << bitmap << ", type=" << int(type)
+    //           << ", start=" << start << ", length=" << length
+    //           << ", seed=" << seed << ", level=" << int(level);
 
     return entry(bitmap, type_enum, start, length, seed, level);
 }
@@ -67,15 +67,15 @@ BwtFS::Node::entry_list BwtFS::Node::entry_list::from_binary(Binary& binary_data
     for (size_t i = 0; i < num_entries; i++) {
         // Check if we have enough data to read another entry
         if (offset + entry::size() > binary_data.size()) {
-            LOG_WARNING << "Not enough data to read entry " << i
-                       << ", offset: " << offset
-                       << ", entry size: " << entry::size()
-                       << ", binary_data size: " << binary_data.size();
+            // LOG_WARNING << "Not enough data to read entry " << i
+            //            << ", offset: " << offset
+            //            << ", entry size: " << entry::size()
+            //            << ", binary_data size: " << binary_data.size();
             break;  // Stop reading entries if we don't have enough data
         }
         auto entry_data = binary_data.read(offset, entry::size());
         Binary entry_binary(entry_data);
-        LOG_DEBUG << "entry_binary size: " << entry_binary.size();
+        // LOG_DEBUG << "entry_binary size: " << entry_binary.size();
         if (entry_binary.size() == 0) {
             LOG_WARNING << "Entry binary size is 0, " << entry::size() << " bytes expected, current size: " << entry_binary.size();
             throw std::runtime_error("Entry binary size is 0");
