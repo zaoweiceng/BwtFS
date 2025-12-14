@@ -723,6 +723,7 @@ int main(int argc, char *argv[]){
     // 初始化FUSE操作结构体
     // 根据不同平台设置相应的函数指针，处理API差异
     using BwtFS::Util::Logger;
+    init();
     // std::cout << "Starting memory_fs FUSE filesystem..." << std::endl;
     for (int i = 0; i < argc; ++i) {
         LOG_INFO << "Arg " << i << ": " << argv[i];

@@ -1099,8 +1099,8 @@ int BwtFSMounter::close(int fd){
     // 防止处理空路径
     if (file_path.empty()) {
         LOG_ERROR << "[close] fd=" << fd << " has empty file_path";
-        // 立即清理这个无效的fd，但不调用cleanupFdMappings避免重复清理
-        fd_map_.erase(fd);
+        // 使用统一的cleanup函数清理无效的fd
+        cleanupFdMappings(fd);
         return -EBADF;
     }
 
@@ -1128,17 +1128,8 @@ int BwtFSMounter::close(int fd){
 
     if (already_closed) {
         LOG_DEBUG << "[close] fd=" << fd << " appears already closed, doing minimal cleanup";
-        // 只清理基本的fd映射，避免重复释放资源
-        fd_map_.erase(fd);
-        // 处理引用计数
-        auto ref_it = path_ref_count_.find(file_path);
-        if (ref_it != path_ref_count_.end()) {
-            ref_it->second--;
-            if (ref_it->second <= 0) {
-                path_fd_map_.erase(file_path);
-                path_ref_count_.erase(ref_it);
-            }
-        }
+        // 使用统一的cleanup函数，它会处理重复检查
+        cleanupFdMappings(fd);
         return 0;
     }
 
@@ -1148,8 +1139,8 @@ int BwtFSMounter::close(int fd){
         delete it->second;
         fd_tree_map_.erase(it);
 
-        // 使用引用计数机制清理相关映射（只清理fd映射，不影响其他引用）
-        fd_map_.erase(fd);
+        // 使用统一的cleanup函数清理所有相关映射
+        cleanupFdMappings(fd);
 
         LOG_DEBUG << "[close] completed read-only fd=" << fd;
         return 0;
@@ -1165,7 +1156,7 @@ int BwtFSMounter::close(int fd){
         auto memory_file_it = memory_fs_.files_.find(file_path);
         if (memory_file_it == memory_fs_.files_.end()) {
             LOG_ERROR << "[close] memory file not found: " << file_path;
-            // 使用引用计数机制清理映射
+            // 使用统一的cleanup函数清理映射
             cleanupFdMappings(fd);
             return -EIO;
         }
@@ -1195,11 +1186,12 @@ int BwtFSMounter::close(int fd){
             // macOS文件复制需要文件在创建后保持可写状态
             LOG_INFO << "[close] keeping empty file open for potential writes: " << file_path;
 
-            // 只关闭内存文件描述符，但保持fd映射有效
+            // 关闭内存文件描述符并清理映射，但保持fd主映射
             auto memory_fd_it = fd_to_memory_fd_map_.find(fd);
             if (memory_fd_it != fd_to_memory_fd_map_.end()) {
                 memory_fs_.close(memory_fd_it->second);
-                // 不删除fd_to_memory_fd_map_映射，以便后续写入可以重新打开
+                fd_to_memory_fd_map_.erase(memory_fd_it);
+                // 注意：fd_map_ 保持不变，这样文件仍然被认为是"打开"状态
             }
             return 0;
         }
@@ -1580,15 +1572,15 @@ void BwtFSMounter::cleanupFdMappings(int fd) {
     // 获取文件路径
     auto it = fd_map_.find(fd);
     if (it == fd_map_.end()) {
-        LOG_DEBUG << "[cleanupFdMappings] fd=" << fd << " not found in fd_map";
-        return;  // fd不存在
+        LOG_DEBUG << "[cleanupFdMappings] fd=" << fd << " not found in fd_map, already cleaned up";
+        return;  // fd不存在，可能已经清理过
     }
 
     std::string file_path = it->second;
     LOG_DEBUG << "[cleanupFdMappings] cleaning up fd=" << fd << " for path=" << file_path;
 
-    // 清理fd相关的映射
-    fd_map_.erase(fd);
+    // 先清理fd相关的映射，防止重复进入
+    fd_map_.erase(it);
 
     // 清理tree映射（BwtFS文件）
     auto tree_it = fd_tree_map_.find(fd);
@@ -1606,8 +1598,15 @@ void BwtFSMounter::cleanupFdMappings(int fd) {
         fd_to_memory_fd_map_.erase(memory_fd_it);
     }
 
-    // 移除复杂的引用计数逻辑，直接清理路径映射
-    // 因为每次open都创建独立的fd，不需要复杂的引用计数管理
+    // 处理引用计数清理
+    auto ref_it = path_ref_count_.find(file_path);
+    if (ref_it != path_ref_count_.end()) {
+        ref_it->second--;
+        if (ref_it->second <= 0) {
+            path_fd_map_.erase(file_path);
+            path_ref_count_.erase(ref_it);
+        }
+    }
 }
 
 SystemInfo BwtFSMounter::getSystemInfo() {
