@@ -49,5 +49,6 @@ lib/boost/*
 lib/jsoncpp/*
 **/CLAUDE.md
 trae/
+.trae/
 .DS_Store
 Thumbs.db
