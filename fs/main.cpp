@@ -898,7 +898,7 @@ int main(int argc, char *argv[]){
             argv[1],                                     // 用户提供的挂载点
             (char *)"-o", (char *)"allow_other",         // 允许其他用户访问
             (char *)"-o", (char *)"volname=bwtfs",        // 卷标名称
-            (char *)"-o", (char *)"uid=501",             // 当前用户ID（需要根据实际用户调整）
+            (char *)"-o", (char *)"uid=501",             // 当前用户ID
             (char *)"-o", (char *)"gid=20",              // 当前组ID（staff组）
             // (char *)"-o", (char *)"noappledouble",      // 不创建.DS_Store文件
             // (char *)"-o", (char *)"noapplexattr",       // 不使用Apple扩展属性
@@ -912,8 +912,8 @@ int main(int argc, char *argv[]){
             argv[0],
             argv[1],                                     // 用户提供的挂载点
             (char *)"-o", (char *)"allow_other",         // 允许其他用户访问
-            (char *)"-o", (char *)"volname=bwtfs",        // 卷标名称
-            (char *)"-o", (char *)"uid=1000",           // 当前用户ID（需要根据实际用户调整）
+            // (char *)"-o", (char *)"volname=bwtfs",        // 卷标名称
+            (char *)"-o", (char *)"uid=1000",           // 当前用户ID
             (char *)"-o", (char *)"gid=1000",            // 当前组ID
             NULL
         };
